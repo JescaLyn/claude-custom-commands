@@ -1,4 +1,4 @@
-# claude-code-commands
+# claude-custom-commands
 
 ## Problem
 
