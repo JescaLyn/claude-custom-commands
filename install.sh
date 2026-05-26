@@ -55,12 +55,16 @@ for cmd in "$REPO_DIR/.claude/commands/"*.sh; do
     fi
 done
 
-# Install skill
-printf '\nSkill:\n'
-SKILL_DEST_DIR="$SKILLS_DIR/create-command"
-mkdir -p "$SKILL_DEST_DIR"
-cp "$REPO_DIR/.claude/skills/create-command/SKILL.md" "$SKILL_DEST_DIR/SKILL.md"
-printf '  Installed: %s\n' "$SKILL_DEST_DIR/SKILL.md"
+# Install skills (all subdirectories of .claude/skills/)
+printf '\nSkills:\n'
+for skill_dir in "$REPO_DIR/.claude/skills/"/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill=$(basename "$skill_dir")
+    SKILL_DEST_DIR="$SKILLS_DIR/$skill"
+    mkdir -p "$SKILL_DEST_DIR"
+    cp "$skill_dir/SKILL.md" "$SKILL_DEST_DIR/SKILL.md"
+    printf '  Installed: %s\n' "$SKILL_DEST_DIR/SKILL.md"
+done
 
 # Register hook in settings.json
 printf '\nHook registration:\n'
@@ -93,6 +97,7 @@ printf 'Try it:\n'
 printf '  /ping         — smoke test\n'
 printf '  /now          — current date and time\n'
 printf '  /commands-help — list all commands\n\n'
-printf 'Create a command:\n'
-printf '  /create-command <description>            — AI writes the script\n'
+printf 'Create or remove a command:\n'
+printf '  /create-command <description>             — AI writes the script\n'
 printf '  /create-command-from-script <name> <path> — register your own script\n'
+printf '  /remove-command <name>                    — uninstall a command\n'

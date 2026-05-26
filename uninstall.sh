@@ -4,10 +4,10 @@
 
 set -euo pipefail
 
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOOKS_DIR="$HOME/.claude/hooks"
 HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
 CHECK_SCRIPT="$HOOKS_DIR/check-slash-conflict.sh"
-SKILL_DIR="$HOME/.claude/skills/create-command"
 SETTINGS="$HOME/.claude/settings.json"
 
 printf 'Uninstalling custom command dispatcher...\n\n'
@@ -22,13 +22,18 @@ for f in "$HOOK_SCRIPT" "$CHECK_SCRIPT"; do
     fi
 done
 
-# Remove skill
-if [[ -d "$SKILL_DIR" ]]; then
-    rm -rf "$SKILL_DIR"
-    printf '  Removed: %s\n' "$SKILL_DIR"
-else
-    printf '  Not found (skipped): %s\n' "$SKILL_DIR"
-fi
+# Remove skills
+for skill_dir in "$REPO_DIR/.claude/skills/"/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill=$(basename "$skill_dir")
+    target="$HOME/.claude/skills/$skill"
+    if [[ -d "$target" ]]; then
+        rm -rf "$target"
+        printf '  Removed: %s\n' "$target"
+    else
+        printf '  Not found (skipped): %s\n' "$target"
+    fi
+done
 
 # Remove hook entry from settings.json
 if [[ -f "$SETTINGS" ]]; then

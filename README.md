@@ -26,7 +26,7 @@ A `UserPromptSubmit` hook intercepts all prompts before the model sees them. If 
 
 ## Included Commands
 
-Four commands and one skill are installed:
+Five commands and two skills are installed:
 
 | Command | Type | What it does |
 |---|---|---|
@@ -34,7 +34,9 @@ Four commands and one skill are installed:
 | `/now` | custom command | Current date and time |
 | `/commands-help` | custom command | List all registered custom commands |
 | `/create-command-from-script` | custom command | Register an existing script as a command |
+| `/remove-command` | custom command | Remove an installed custom command by name |
 | `/create-command` | skill (uses inference) | Describe a command; Claude writes and installs it |
+| `/refresh-slash-names` | skill (uses inference) | Update built-in and bundled skill lists from the Claude Code docs |
 
 ## Creating a Command
 
@@ -93,6 +95,7 @@ Edit any script in `~/.claude/commands/` directly. The install script skips file
 bash tests/test-dispatch.sh
 bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
+bash tests/test-remove-command.sh
 ```
 
 To test `/create-command-from-script` end-to-end in Claude Code, open Claude Code from the repo root and type:

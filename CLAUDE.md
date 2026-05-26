@@ -25,15 +25,18 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     now.sh                                 /now  — current date/time
     commands-help.sh                       /commands-help — list registered commands
     create-command-from-script.sh          /create-command-from-script — register a script as a command
+    remove-command.sh                      /remove-command — uninstall a custom command
   skills/
     create-command/SKILL.md                /create-command — AI generates script from description, installs it
+    refresh-slash-names/SKILL.md           /refresh-slash-names — update built-in and skill constant lists
 
 install.sh                                 copies .claude/ to ~/.claude/, registers UserPromptSubmit hook
-uninstall.sh                               removes hook scripts, skill, and hook entry; preserves commands/
+uninstall.sh                               removes hook scripts, skills, and hook entry; preserves commands/
 
 tests/test-dispatch.sh
 tests/test-check-slash-conflict.sh
 tests/test-create-command-from-script.sh
+tests/test-remove-command.sh
 ```
 
 ## Key Decisions
@@ -45,10 +48,6 @@ tests/test-create-command-from-script.sh
 **Direct global install over plugin**: Plugin format is tied to Claude Code's marketplace/cache infrastructure, which is not designed for self-hosted packages. An install script that edits settings.json is simpler and fully self-contained.
 
 **Scripts receive args via unquoted `$ARGS`**: Intentional word-splitting works for flag-style args. Commands that need structured arg parsing receive the raw args string in `$1`.
-
-## Roadmap
-
-**`/refresh-slash-names`**: A skill (or command) that fetches the current list of Claude Code built-in commands and bundled skills from the Claude Code documentation and rewrites `~/.claude/constants/builtin-commands.txt` and `~/.claude/constants/bundled-skills.txt` in place. The lists are currently hardcoded and will drift as Claude Code ships new built-ins and skills. This command makes the update one invocation instead of a manual edit.
 
 ## Hook Output Rendering
 
