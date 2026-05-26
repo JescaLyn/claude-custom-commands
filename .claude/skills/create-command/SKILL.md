@@ -1,7 +1,7 @@
 ---
 name: create-command
-description: Create a new Claude Code custom command from a description. Generates a bash script and installs it to ~/.claude/commands/.
-argument-hint: [name] <description>
+description: Create a new Claude Code custom command from a description. Generates a bash script and installs it to the project or global commands directory.
+argument-hint: "[name] <description>"
 allowed-tools: [Bash, Write]
 ---
 
@@ -32,15 +32,21 @@ If exit 1: show the warnings and ask whether to proceed or choose a different na
 Write a bash script that implements the description:
 - `#!/usr/bin/env bash` header
 - `# description:` and `# usage:` lines
-- `set -euo pipefail` unless the script is trivially short
+- `set -euo pipefail`
 - Arguments via `$*`; output to stdout
 
 **3. Install**
 
-1. `mkdir -p ~/.claude/commands`
-2. Write the generated script to `~/.claude/commands/<name>.sh` using the `Write` tool.
-3. `chmod +x ~/.claude/commands/<name>.sh`
-4. Write an autocomplete stub to `~/.claude/commands/<name>.md` with the one-line description as its only content (skip if the file already exists).
+Resolve the target directory:
+```bash
+COMMANDS_DIR="${CLAUDE_PROJECT_DIR:+$CLAUDE_PROJECT_DIR/.claude/commands}"
+COMMANDS_DIR="${COMMANDS_DIR:-$HOME/.claude/commands}"
+```
+
+1. `mkdir -p "$COMMANDS_DIR"`
+2. Write the generated script to `$COMMANDS_DIR/<name>.sh` using the `Write` tool.
+3. `chmod +x "$COMMANDS_DIR/<name>.sh"`
+4. Write an autocomplete stub to `$COMMANDS_DIR/<name>.md` with the one-line description as its only content (skip if the file already exists).
 
 **4. Confirm**
 

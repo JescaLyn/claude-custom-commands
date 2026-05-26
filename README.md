@@ -95,6 +95,12 @@ bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
 ```
 
+To test `/create-command-from-script` end-to-end in Claude Code, open Claude Code from the repo root and type:
+
+```
+/create-command-from-script hello tests/sample-hello.sh
+```
+
 ## Uninstall
 
 ```bash
@@ -111,7 +117,7 @@ rm -rf ~/.claude/commands/
 
 | Variable | Default | Description |
 |---|---|---|
-| `CLAUDE_COMMANDS_DIR` | `~/.claude/commands` | Where command scripts are looked up |
+| `CLAUDE_COMMANDS_DIR` | project-local `.claude/commands/`, or `~/.claude/commands` outside a project | Override the directory where command scripts are looked up |
 
 ---
 
