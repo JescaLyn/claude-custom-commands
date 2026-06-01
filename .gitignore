@@ -4,3 +4,7 @@
 # Editor
 *.swp
 *~
+
+# Claude Code local config (personal permission overrides and notes)
+.claude/settings.local.json
+.claude/CLAUDE.local.md
