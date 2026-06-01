@@ -9,20 +9,21 @@ Requires `bash` and `python3`.
 ```bash
 git clone https://github.com/JescaLyn/claude-custom-commands
 cd claude-custom-commands
+claude
 ```
 
-Open Claude Code from that directory, then run:
+In Claude Code, run:
 
 ```
 /install-custom-commands
 ```
 
-Restart Claude Code, then try:
+Restart Claude Code (`/exit`, then `claude` again), then try:
 
 ```
-/ping                                              confirm the hook is active
-/create-command show the current git branch        Claude writes and installs a command
-/create-command-from-script deploy ./deploy.sh     register your own script
+/ping
+/create-command show the current git branch
+/create-command-from-script deploy ./deploy.sh
 ```
 
 ## How It Works
