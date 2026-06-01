@@ -37,6 +37,7 @@ tests/test-dispatch.sh
 tests/test-check-slash-conflict.sh
 tests/test-create-command-from-script.sh
 tests/test-remove-command.sh
+tests/test-integration.sh
 ```
 
 ## Key Decisions

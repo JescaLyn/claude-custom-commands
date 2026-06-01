@@ -7,7 +7,7 @@ User-defined slash commands that run deterministic bash scripts, with no LLM inf
 Requires `bash` and `python3`.
 
 ```bash
-git clone https://github.com/<your-username>/claude-custom-commands
+git clone https://github.com/JescaLyn/claude-custom-commands
 cd claude-custom-commands
 ./install.sh
 ```

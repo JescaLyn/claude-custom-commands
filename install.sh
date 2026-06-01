@@ -54,6 +54,12 @@ for cmd in "$REPO_DIR/.claude/commands/"*.sh; do
         printf '  Installed: /%s\n' "${name%.sh}"
     fi
 done
+# Copy autocomplete stubs (skip if present; silently, no separate output)
+for stub in "$REPO_DIR/.claude/commands/"*.md; do
+    [[ -f "$stub" ]] || continue
+    dest="$COMMAND_DIR/$(basename "$stub")"
+    [[ -f "$dest" ]] || cp "$stub" "$dest"
+done
 
 # Install skills (all subdirectories of .claude/skills/)
 printf '\nSkills:\n'
