@@ -17,6 +17,7 @@ bash tests/test-dispatch.sh
 bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
 bash tests/test-remove-command.sh
+bash tests/test-integration.sh
 ```
 
 Each script is self-contained and uses temporary directories — no install required.

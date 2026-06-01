@@ -96,6 +96,7 @@ bash tests/test-dispatch.sh
 bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
 bash tests/test-remove-command.sh
+bash tests/test-integration.sh
 ```
 
 To test `/create-command-from-script` end-to-end in Claude Code, open Claude Code from the repo root and type:
