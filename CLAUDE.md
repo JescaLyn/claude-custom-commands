@@ -25,6 +25,7 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     now.sh                                 /now  — current date/time
     commands-help.sh                       /commands-help — list registered commands
     install-custom-commands.sh             /install-custom-commands — install globally or into a project
+    uninstall-custom-commands.sh           /uninstall-custom-commands — uninstall globally or remove from a project
     create-command-from-script.sh          /create-command-from-script — register a script as a command
     remove-command.sh                      /remove-command — uninstall a custom command
   skills/
@@ -38,6 +39,8 @@ tests/test-dispatch.sh
 tests/test-check-slash-conflict.sh
 tests/test-create-command-from-script.sh
 tests/test-remove-command.sh
+tests/test-install-custom-commands.sh
+tests/test-uninstall-custom-commands.sh
 tests/test-integration.sh
 ```
 

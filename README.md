@@ -31,14 +31,15 @@ A `UserPromptSubmit` hook intercepts all prompts before the model sees them. If 
 
 ## Included Commands
 
-Six commands and two skills are installed:
+Seven commands and two skills are installed:
 
 | Command | Type | What it does |
 |---|---|---|
 | `/ping` | custom command | Confirm the dispatcher is active |
 | `/now` | custom command | Current date and time |
 | `/commands-help` | custom command | List all registered custom commands |
-| `/install-custom-commands` | custom command | Install globally, or into a project with an optional path argument |
+| `/install-custom-commands` | custom command | Install globally, or copy commands into a project directory with an optional path argument |
+| `/uninstall-custom-commands` | custom command | Uninstall globally, or remove repo commands from a project directory with an optional path argument |
 | `/create-command-from-script` | custom command | Register an existing script as a command |
 | `/remove-command` | custom command | Remove an installed custom command by name |
 | `/create-command` | skill (uses inference) | Describe a command; Claude writes and installs it |
@@ -102,6 +103,8 @@ bash tests/test-dispatch.sh
 bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
 bash tests/test-remove-command.sh
+bash tests/test-install-custom-commands.sh
+bash tests/test-uninstall-custom-commands.sh
 bash tests/test-integration.sh
 ```
 
@@ -112,6 +115,14 @@ To test `/create-command-from-script` end-to-end in Claude Code, open Claude Cod
 ```
 
 ## Uninstall
+
+Open Claude Code from the repo directory and run:
+
+```
+/uninstall-custom-commands
+```
+
+Or from a terminal:
 
 ```bash
 ./uninstall.sh

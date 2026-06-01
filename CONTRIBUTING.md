@@ -17,6 +17,8 @@ bash tests/test-dispatch.sh
 bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
 bash tests/test-remove-command.sh
+bash tests/test-install-custom-commands.sh
+bash tests/test-uninstall-custom-commands.sh
 bash tests/test-integration.sh
 ```
 
@@ -30,7 +32,7 @@ Each script is self-contained and uses temporary directories — no install requ
 4. Add the command to the table in `README.md`.
 5. Update the architecture diagram in `CLAUDE.md`.
 
-`install.sh` picks up all `.sh` files in `.claude/commands/` automatically.
+`install.sh` picks up all `.sh` scripts and `.md` autocomplete stubs in `.claude/commands/` automatically.
 
 ## Adding a Skill
 
