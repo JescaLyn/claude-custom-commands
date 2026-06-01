@@ -24,6 +24,7 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     ping.sh                                /ping — smoke test
     now.sh                                 /now  — current date/time
     commands-help.sh                       /commands-help — list registered commands
+    install-custom-commands.sh             /install-custom-commands — install globally or into a project
     create-command-from-script.sh          /create-command-from-script — register a script as a command
     remove-command.sh                      /remove-command — uninstall a custom command
   skills/

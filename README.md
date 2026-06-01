@@ -9,7 +9,12 @@ Requires `bash` and `python3`.
 ```bash
 git clone https://github.com/JescaLyn/claude-custom-commands
 cd claude-custom-commands
-./install.sh
+```
+
+Open Claude Code from that directory, then run:
+
+```
+/install-custom-commands
 ```
 
 Restart Claude Code, then try:
@@ -26,13 +31,14 @@ A `UserPromptSubmit` hook intercepts all prompts before the model sees them. If 
 
 ## Included Commands
 
-Five commands and two skills are installed:
+Six commands and two skills are installed:
 
 | Command | Type | What it does |
 |---|---|---|
 | `/ping` | custom command | Confirm the dispatcher is active |
 | `/now` | custom command | Current date and time |
 | `/commands-help` | custom command | List all registered custom commands |
+| `/install-custom-commands` | custom command | Install globally, or into a project with an optional path argument |
 | `/create-command-from-script` | custom command | Register an existing script as a command |
 | `/remove-command` | custom command | Remove an installed custom command by name |
 | `/create-command` | skill (uses inference) | Describe a command; Claude writes and installs it |
