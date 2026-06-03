@@ -39,8 +39,8 @@ Seven commands and two skills are installed:
 | `/ping` | custom command | Confirm the dispatcher is active |
 | `/now` | custom command | Current date and time |
 | `/commands-help` | custom command | List all registered custom commands |
-| `/install-custom-commands` | custom command | Install globally, or copy commands into a project directory with an optional path argument |
-| `/uninstall-custom-commands` | custom command | Uninstall globally, or remove repo commands from a project directory with an optional path argument |
+| `/install-custom-commands` | custom command | Install globally, or copy commands into a project directory with an optional path argument. Must be run from the claude-custom-commands repo directory. |
+| `/uninstall-custom-commands` | custom command | Uninstall globally, or remove repo commands from a project directory with an optional path argument. Installed at the same scope as commands; works from any directory. |
 | `/create-command-from-script` | custom command | Register an existing script as a command |
 | `/remove-command` | custom command | Remove an installed custom command by name |
 | `/create-command` | skill (uses inference) | Describe a command; Claude writes and installs it |
@@ -117,13 +117,13 @@ To test `/create-command-from-script` end-to-end in Claude Code, open Claude Cod
 
 ## Uninstall
 
-Open Claude Code from the repo directory and run:
+Run from any Claude Code session:
 
 ```
 /uninstall-custom-commands
 ```
 
-Or from a terminal:
+If Claude Code isn't available, use the terminal fallback from the repo directory:
 
 ```bash
 ./uninstall.sh
@@ -162,4 +162,4 @@ Built-in commands run without inference. If you register a custom command with t
 | `/skills` | Browse available skills |
 | `/usage` | Show token and cost usage for the session |
 
-Type `/help` in Claude Code for the authoritative list — the built-ins above are current as of May 2026 but may not be exhaustive.
+Type `/help` in Claude Code for the authoritative list — the table above may not be exhaustive.

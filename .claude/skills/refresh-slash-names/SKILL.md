@@ -2,6 +2,9 @@
 name: refresh-slash-names
 description: Update the built-in command and bundled skill lists from the Claude Code documentation.
 allowed-tools: [WebSearch, WebFetch, Write, Bash]
+model: haiku
+effort: low
+context: fork
 ---
 
 Update `~/.claude/constants/builtin-commands.txt` and `~/.claude/constants/bundled-skills.txt` with current names from the Claude Code documentation. Run this when conflict warnings seem stale or after a Claude Code update.

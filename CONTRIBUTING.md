@@ -26,20 +26,23 @@ Each script is self-contained and uses temporary directories — no install requ
 
 ## Adding a Command
 
-1. Write the script to `.claude/commands/<name>.sh`. Include `# description:` and `# usage:` header comments and `set -euo pipefail`.
-2. Write an autocomplete stub to `.claude/commands/<name>.md` with the one-line description as its first line.
-3. Write tests in `tests/test-<name>.sh` following the pattern in `tests/test-create-command-from-script.sh`.
-4. Add the command to the table in `README.md`.
-5. Update the architecture diagram in `CLAUDE.md`.
+Use `/create-command <description>` to generate the script, or `/create-command-from-script <name> <path>` to register an existing one. Both write the script and autocomplete stub to `.claude/commands/` automatically.
 
-`install.sh` picks up all `.sh` scripts and `.md` autocomplete stubs in `.claude/commands/` automatically.
+Then:
+
+1. Write tests in `tests/test-<name>.sh` following the pattern in `tests/test-create-command-from-script.sh`.
+2. Add the command to the table in `README.md`.
+3. Update the architecture diagram in `CLAUDE.md`.
+
+`/install-custom-commands` picks up all `.sh` scripts and `.md` autocomplete stubs in `.claude/commands/` automatically.
 
 ## Adding a Skill
 
 1. Create `.claude/skills/<name>/SKILL.md` with YAML frontmatter (`name`, `description`, `allowed-tools`).
 2. Add the skill to the table in `README.md`.
+3. Update the architecture diagram in `CLAUDE.md`.
 
-`install.sh` and `uninstall.sh` both discover skills automatically from `.claude/skills/` — no changes needed there.
+`/install-custom-commands` discovers skills automatically from `.claude/skills/` — no changes needed there.
 
 ## Pull Requests
 

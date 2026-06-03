@@ -23,27 +23,16 @@ check() {
 }
 
 ORIG_DIR="$PWD"
-TEMP_REPO=$(mktemp -d)
+TEMP_HOME=$(mktemp -d)
 TEMP_PROJECT=$(mktemp -d)
-trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_REPO" "$TEMP_PROJECT"' EXIT
-
-# Mock repo: install.sh that prints CLAUDE_COMMANDS_DIR and exits 0
-cat > "$TEMP_REPO/install.sh" << 'MOCK'
-#!/usr/bin/env bash
-printf 'COMMANDS_DIR=%s\n' "${CLAUDE_COMMANDS_DIR:-unset}"
-exit 0
-MOCK
-chmod +x "$TEMP_REPO/install.sh"
-# Minimal .claude/commands/ so the project-path glob has something to iterate
-mkdir -p "$TEMP_REPO/.claude/commands"
-printf '#!/usr/bin/env bash\n' > "$TEMP_REPO/.claude/commands/ping.sh"
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_HOME" "$TEMP_PROJECT"' EXIT
 
 printf 'Running install-custom-commands.sh tests...\n\n'
 
 # --- Wrong directory ---
 printf 'Wrong directory:\n'
 cd /tmp
-check "exits 1 when no install.sh in CWD" 1 bash "$CMD"
+check "exits 1 when not in repo dir" 1 bash "$CMD"
 
 STDERR=$(bash "$CMD" 2>&1 1>/dev/null || true)
 if printf '%s' "$STDERR" | grep -q 'repo directory'; then
@@ -62,7 +51,7 @@ cd "$ORIG_DIR"
 
 # --- Invalid project path ---
 printf '\nInvalid project path:\n'
-cd "$TEMP_REPO"
+cd "$REPO"
 check "exits 1 for nonexistent project path" 1 bash "$CMD" "/nonexistent/$$"
 
 STDERR=$(bash "$CMD" "/nonexistent/$$" 2>&1 1>/dev/null || true)
@@ -82,29 +71,68 @@ cd "$ORIG_DIR"
 
 # --- Global install ---
 printf '\nGlobal install:\n'
-cd "$TEMP_REPO"
-check "exits 0 for global install" 0 bash "$CMD"
+cd "$REPO"
+check "exits 0 for global install" 0 env HOME="$TEMP_HOME" bash "$CMD"
 
-OUTPUT=$(bash "$CMD" 2>&1 || true)
-if printf '%s' "$OUTPUT" | grep -q 'COMMANDS_DIR=unset'; then
-    printf '  PASS  global install calls install.sh without CLAUDE_COMMANDS_DIR\n'; (( pass++ )) || true
-else
-    printf '  FAIL  unexpected output: %s\n' "$OUTPUT"; (( fail++ )) || true
-fi
+[[ -f "$TEMP_HOME/.claude/hooks/dispatch-commands.sh" ]] && {
+    printf '  PASS  hook script installed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  hook script missing\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME/.claude/commands/ping.sh" ]] && {
+    printf '  PASS  commands installed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  commands missing\n'; (( fail++ )) || true
+}
+[[ -d "$TEMP_HOME/.claude/skills/create-command" ]] && {
+    printf '  PASS  skills installed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  skills missing\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME/.claude/settings.json" ]] && grep -q 'UserPromptSubmit' "$TEMP_HOME/.claude/settings.json" && {
+    printf '  PASS  hook registered in settings.json\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  hook not registered in settings.json\n'; (( fail++ )) || true
+}
 cd "$ORIG_DIR"
 
 # --- Project install ---
 printf '\nProject install:\n'
-cd "$TEMP_REPO"
-check "exits 0 for project install" 0 bash "$CMD" "$TEMP_PROJECT"
+TEMP_HOME2=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_HOME" "$TEMP_PROJECT" "$TEMP_HOME2"' EXIT
+cd "$REPO"
+check "exits 0 for project install" 0 env HOME="$TEMP_HOME2" bash "$CMD" "$TEMP_PROJECT"
 
-OUTPUT=$(bash "$CMD" "$TEMP_PROJECT" 2>&1 || true)
-EXPECTED="COMMANDS_DIR=$TEMP_PROJECT/.claude/commands"
-if printf '%s' "$OUTPUT" | grep -qF "$EXPECTED"; then
-    printf '  PASS  sets CLAUDE_COMMANDS_DIR to project/.claude/commands\n'; (( pass++ )) || true
-else
-    printf '  FAIL  expected "%s", got: %s\n' "$EXPECTED" "$OUTPUT"; (( fail++ )) || true
-fi
+[[ -f "$TEMP_PROJECT/.claude/commands/ping.sh" ]] && {
+    printf '  PASS  commands installed to project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  commands missing from project dir\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_PROJECT/.claude/commands/create-command-from-script.sh" ]] && {
+    printf '  PASS  create-command-from-script.sh in project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  create-command-from-script.sh missing from project dir\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_PROJECT/.claude/commands/remove-command.sh" ]] && {
+    printf '  PASS  remove-command.sh in project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  remove-command.sh missing from project dir\n'; (( fail++ )) || true
+}
+[[ ! -f "$TEMP_HOME2/.claude/commands/ping.sh" ]] && {
+    printf '  PASS  commands not duplicated in global dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  commands incorrectly placed in global dir\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME2/.claude/hooks/dispatch-commands.sh" ]] && {
+    printf '  PASS  hooks always go to global dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  hooks missing from global dir\n'; (( fail++ )) || true
+}
+[[ -d "$TEMP_HOME2/.claude/skills/create-command" ]] && {
+    printf '  PASS  skills always go to global dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  skills missing from global dir\n'; (( fail++ )) || true
+}
 cd "$ORIG_DIR"
 
 printf '\nResults: %d passed, %d failed\n' "$pass" "$fail"

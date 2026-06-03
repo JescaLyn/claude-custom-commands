@@ -32,8 +32,8 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     create-command/SKILL.md                /create-command — AI generates script from description, installs it
     refresh-slash-names/SKILL.md           /refresh-slash-names — update built-in and skill constant lists
 
-install.sh                                 copies .claude/ to ~/.claude/, registers UserPromptSubmit hook
-uninstall.sh                               removes hook scripts, skills, and hook entry; preserves commands/
+install.sh                                 thin wrapper; delegates to install-custom-commands.sh
+uninstall.sh                               thin wrapper; delegates to uninstall-custom-commands.sh
 
 tests/test-dispatch.sh
 tests/test-check-slash-conflict.sh
@@ -51,6 +51,12 @@ tests/test-integration.sh
 **Convention over registry**: Commands are discovered by filename. `reset.sh` → `/reset`. No registry file to maintain.
 
 **Direct global install over plugin**: Plugin format is tied to Claude Code's marketplace/cache infrastructure, which is not designed for self-hosted packages. An install script that edits settings.json is simpler and fully self-contained.
+
+**install-custom-commands.sh is the install implementation**: `install.sh` and `uninstall.sh` at the project root are thin wrappers that delegate to the command scripts. The command scripts contain the actual logic so `/install-custom-commands` and `/uninstall-custom-commands` are self-contained — no delegation to a separate file required.
+
+**Project install scope**: Installing with a path arg (`/install-custom-commands /path/to/project`) puts command scripts in the project's `.claude/commands/`, but hooks, skills, and constants always go to `~/.claude/`. The hook is registered in `~/.claude/settings.json`. A "project install" scopes which commands are available in a project; the dispatch infrastructure is always global.
+
+**Global uninstall requires no repo dir**: `uninstall-custom-commands.sh` hardcodes all paths it removes (hooks, skill names, hook entry). Project uninstall hardcodes the list of command names this repo manages. Neither mode needs the repo to be present.
 
 **Scripts receive args via unquoted `$ARGS`**: Intentional word-splitting works for flag-style args. Commands that need structured arg parsing receive the raw args string in `$1`.
 
