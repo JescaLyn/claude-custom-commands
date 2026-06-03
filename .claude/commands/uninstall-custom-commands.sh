@@ -46,7 +46,7 @@ print(json.dumps(s, indent=2))
 PYEOF
     )
     if [[ "$updated" == "NO_CHANGE" ]]; then
-        printf '  settings.json unreadable or invalid JSON -- skipped\n' >&2
+        printf '  settings.json unreadable or invalid JSON -- skipped\n'
     elif [[ "$updated" == "NOT_FOUND" ]]; then
         printf '  Hook not found in %s -- skipped\n' "$settings_path"
     else
@@ -56,7 +56,7 @@ PYEOF
 }
 
 if [[ -n "${1:-}" ]]; then
-    PROJECT="$1"
+    PROJECT="${1/#~/$HOME}"
     if [[ ! -d "$PROJECT" ]]; then
         printf 'Error: project directory not found: %s\n' "$PROJECT" >&2
         exit 1

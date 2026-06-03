@@ -22,7 +22,7 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 if [[ -n "${1:-}" ]]; then
-    PROJECT="$1"
+    PROJECT="${1/#~/$HOME}"
     if [[ ! -d "$PROJECT" ]]; then
         printf 'Error: project directory not found: %s\n' "$PROJECT" >&2
         exit 1
