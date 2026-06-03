@@ -46,30 +46,33 @@ else
     printf '  FAIL  stdout not empty on error: %s\n' "$STDOUT"; (( fail++ )) || true
 fi
 
-# --- Project with no commands directory ---
-printf '\nProject with no commands directory:\n'
+# --- Project with nothing installed ---
+printf '\nProject with nothing installed:\n'
 EMPTY_PROJECT=$(mktemp -d)
 trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$EMPTY_PROJECT"' EXIT
-check "exits 0 when project has no commands dir" 0 bash "$CMD" "$EMPTY_PROJECT"
-OUTPUT=$(bash "$CMD" "$EMPTY_PROJECT" 2>&1 || true)
-if printf '%s' "$OUTPUT" | grep -qi 'nothing to remove\|No commands'; then
-    printf '  PASS  helpful message when nothing to remove\n'; (( pass++ )) || true
-else
-    printf '  FAIL  expected helpful message, got: %s\n' "$OUTPUT"; (( fail++ )) || true
-fi
+check "exits 0 when project has nothing installed" 0 bash "$CMD" "$EMPTY_PROJECT"
 
-# --- Project with matching commands (hardcoded list) ---
-printf '\nProject with matching commands:\n'
+# --- Project uninstall: commands, hooks, skills, settings ---
+printf '\nProject uninstall:\n'
 PROJECT_CMDS="$TEMP_PROJECT/.claude/commands"
-mkdir -p "$PROJECT_CMDS"
+PROJECT_HOOKS="$TEMP_PROJECT/.claude/hooks"
+PROJECT_SKILLS="$TEMP_PROJECT/.claude/skills"
+mkdir -p "$PROJECT_CMDS" "$PROJECT_HOOKS" "$PROJECT_SKILLS/create-command"
 # Repo-managed commands — must be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/ping.sh"
 printf 'ping\n'               > "$PROJECT_CMDS/ping.md"
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/now.sh"
 # Non-repo command — must NOT be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/my-custom.sh"
+# Repo-installed hooks and skills
+printf '#!/usr/bin/env bash\n' > "$PROJECT_HOOKS/dispatch-commands.sh"
+printf '#!/usr/bin/env bash\n' > "$PROJECT_HOOKS/check-slash-conflict.sh"
+printf 'name: create-command\n' > "$PROJECT_SKILLS/create-command/SKILL.md"
+# settings.json with hook entry using ${CLAUDE_PROJECT_DIR}
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
+    > "$TEMP_PROJECT/.claude/settings.json"
 
-check "exits 0 removing matching commands" 0 bash "$CMD" "$TEMP_PROJECT"
+check "exits 0 for project uninstall" 0 bash "$CMD" "$TEMP_PROJECT"
 
 [[ ! -f "$PROJECT_CMDS/ping.sh" ]] && {
     printf '  PASS  ping.sh removed\n'; (( pass++ )) || true
@@ -91,6 +94,22 @@ check "exits 0 removing matching commands" 0 bash "$CMD" "$TEMP_PROJECT"
 } || {
     printf '  FAIL  non-repo command was incorrectly removed\n'; (( fail++ )) || true
 }
+[[ ! -f "$PROJECT_HOOKS/dispatch-commands.sh" ]] && {
+    printf '  PASS  dispatch hook removed from project\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  dispatch hook still present in project\n'; (( fail++ )) || true
+}
+[[ ! -d "$PROJECT_SKILLS/create-command" ]] && {
+    printf '  PASS  create-command skill removed from project\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  create-command skill still present in project\n'; (( fail++ )) || true
+}
+PROJ_SETTINGS_CONTENT=$(cat "$TEMP_PROJECT/.claude/settings.json" 2>/dev/null || true)
+if ! printf '%s' "$PROJ_SETTINGS_CONTENT" | grep -q 'UserPromptSubmit'; then
+    printf '  PASS  hook entry removed from project settings.json\n'; (( pass++ )) || true
+else
+    printf '  FAIL  hook entry still in project settings.json\n'; (( fail++ )) || true
+fi
 
 # --- Global uninstall (HOME override, run from /tmp — no repo dir needed) ---
 printf '\nGlobal uninstall (from arbitrary directory):\n'

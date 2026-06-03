@@ -54,7 +54,7 @@ tests/test-integration.sh
 
 **install-custom-commands.sh is the install implementation**: `install.sh` and `uninstall.sh` at the project root are thin wrappers that delegate to the command scripts. The command scripts contain the actual logic so `/install-custom-commands` and `/uninstall-custom-commands` are self-contained — no delegation to a separate file required.
 
-**Project install scope**: Installing with a path arg (`/install-custom-commands /path/to/project`) puts command scripts in the project's `.claude/commands/`, but hooks, skills, and constants always go to `~/.claude/`. The hook is registered in `~/.claude/settings.json`. A "project install" scopes which commands are available in a project; the dispatch infrastructure is always global.
+**Project install scope**: Installing with a path arg (`/install-custom-commands /path/to/project`) is fully isolated — hooks, commands, skills, and constants all go to the project's `.claude/` directory. The hook is registered in the project's `.claude/settings.json` using `${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh` so it resolves correctly regardless of working directory. Nothing is written to `~/.claude/`.
 
 **Global uninstall requires no repo dir**: `uninstall-custom-commands.sh` hardcodes all paths it removes (hooks, skill names, hook entry). Project uninstall hardcodes the list of command names this repo manages. Neither mode needs the repo to be present.
 

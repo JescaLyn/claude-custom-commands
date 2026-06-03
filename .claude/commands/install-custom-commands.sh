@@ -4,6 +4,7 @@
 #
 # Must be run from the claude-custom-commands repo directory — source files
 # (hooks, commands, skills) are copied from there.
+# Project installs are fully isolated: nothing is written to ~/.claude/.
 
 set -euo pipefail
 
@@ -27,16 +28,24 @@ if [[ -n "${1:-}" ]]; then
         exit 1
     fi
     COMMAND_DIR="$PROJECT/.claude/commands"
+    HOOKS_DIR="$PROJECT/.claude/hooks"
+    CONSTANTS_DIR="$PROJECT/.claude/constants"
+    SKILLS_DIR="$PROJECT/.claude/skills"
+    SETTINGS="$PROJECT/.claude/settings.json"
+    # ${CLAUDE_PROJECT_DIR} is resolved by Claude Code at runtime — use it as a literal
+    # so the hook path stays correct regardless of working directory.
+    HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
 else
     COMMAND_DIR="$HOME/.claude/commands"
+    HOOKS_DIR="$HOME/.claude/hooks"
+    CONSTANTS_DIR="$HOME/.claude/constants"
+    SKILLS_DIR="$HOME/.claude/skills"
+    SETTINGS="$HOME/.claude/settings.json"
+    HOOK_CMD="$HOME/.claude/hooks/dispatch-commands.sh"
 fi
 
-HOOKS_DIR="$HOME/.claude/hooks"
 HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
 CHECK_SCRIPT="$HOOKS_DIR/check-slash-conflict.sh"
-CONSTANTS_DIR="$HOME/.claude/constants"
-SKILLS_DIR="$HOME/.claude/skills"
-SETTINGS="$HOME/.claude/settings.json"
 
 printf 'Installing custom command dispatcher...\n\n'
 
@@ -88,7 +97,7 @@ done
 
 # Register hook in settings.json
 printf '\nHook registration:\n'
-UPDATED=$(python3 - "$SETTINGS" "$HOOK_SCRIPT" << 'PYEOF'
+UPDATED=$(python3 - "$SETTINGS" "$HOOK_CMD" << 'PYEOF'
 import json, sys, os
 settings_path, hook_cmd = sys.argv[1], sys.argv[2]
 try:

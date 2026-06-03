@@ -118,20 +118,25 @@ check "exits 0 for project install" 0 env HOME="$TEMP_HOME2" bash "$CMD" "$TEMP_
 } || {
     printf '  FAIL  remove-command.sh missing from project dir\n'; (( fail++ )) || true
 }
-[[ ! -f "$TEMP_HOME2/.claude/commands/ping.sh" ]] && {
-    printf '  PASS  commands not duplicated in global dir\n'; (( pass++ )) || true
+[[ -f "$TEMP_PROJECT/.claude/hooks/dispatch-commands.sh" ]] && {
+    printf '  PASS  hooks installed to project dir\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  commands incorrectly placed in global dir\n'; (( fail++ )) || true
+    printf '  FAIL  hooks missing from project dir\n'; (( fail++ )) || true
 }
-[[ -f "$TEMP_HOME2/.claude/hooks/dispatch-commands.sh" ]] && {
-    printf '  PASS  hooks always go to global dir\n'; (( pass++ )) || true
+[[ -d "$TEMP_PROJECT/.claude/skills/create-command" ]] && {
+    printf '  PASS  skills installed to project dir\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  hooks missing from global dir\n'; (( fail++ )) || true
+    printf '  FAIL  skills missing from project dir\n'; (( fail++ )) || true
 }
-[[ -d "$TEMP_HOME2/.claude/skills/create-command" ]] && {
-    printf '  PASS  skills always go to global dir\n'; (( pass++ )) || true
+[[ -f "$TEMP_PROJECT/.claude/settings.json" ]] && grep -q 'CLAUDE_PROJECT_DIR' "$TEMP_PROJECT/.claude/settings.json" && {
+    printf '  PASS  hook registered in project settings.json with ${CLAUDE_PROJECT_DIR}\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  skills missing from global dir\n'; (( fail++ )) || true
+    printf '  FAIL  hook not registered correctly in project settings.json\n'; (( fail++ )) || true
+}
+[[ ! -d "$TEMP_HOME2/.claude" ]] && {
+    printf '  PASS  global ~/.claude untouched\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  project install wrote to global ~/.claude\n'; (( fail++ )) || true
 }
 cd "$ORIG_DIR"
 
