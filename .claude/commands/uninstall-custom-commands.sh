@@ -73,6 +73,12 @@ if [[ -n "${1:-}" ]]; then
         done
     fi
 
+    # Remove constants
+    for f in "$PROJECT/.claude/constants/builtin-commands.txt" \
+             "$PROJECT/.claude/constants/bundled-skills.txt"; do
+        [[ -f "$f" ]] && { rm "$f"; printf '  Removed: %s\n' "$f"; }
+    done
+
     # Remove hook scripts
     for f in "$PROJECT/.claude/hooks/dispatch-commands.sh" \
              "$PROJECT/.claude/hooks/check-slash-conflict.sh"; do
@@ -91,6 +97,7 @@ if [[ -n "${1:-}" ]]; then
 
     printf '\nDone.\n'
 else
+    COMMANDS_DIR="$HOME/.claude/commands"
     HOOKS_DIR="$HOME/.claude/hooks"
     HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
     CHECK_SCRIPT="$HOOKS_DIR/check-slash-conflict.sh"
@@ -99,6 +106,29 @@ else
 
     printf 'Uninstalling custom command dispatcher...\n\n'
 
+    # Remove command files
+    if [[ -d "$COMMANDS_DIR" ]]; then
+        for name in ping now commands-help install-custom-commands uninstall-custom-commands \
+                    create-command-from-script remove-command; do
+            removed=0
+            [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
+            [[ -f "$COMMANDS_DIR/$name.md" ]] && { rm "$COMMANDS_DIR/$name.md"; removed=1; }
+            [[ $removed -eq 1 ]] && printf '  Removed: /%s\n' "$name"
+        done
+    fi
+
+    # Remove constants
+    for f in "$HOME/.claude/constants/builtin-commands.txt" \
+             "$HOME/.claude/constants/bundled-skills.txt"; do
+        if [[ -f "$f" ]]; then
+            rm "$f"
+            printf '  Removed: %s\n' "$f"
+        else
+            printf '  Not found (skipped): %s\n' "$f"
+        fi
+    done
+
+    # Remove hook scripts
     for f in "$HOOK_SCRIPT" "$CHECK_SCRIPT"; do
         if [[ -f "$f" ]]; then
             rm "$f"
@@ -108,6 +138,7 @@ else
         fi
     done
 
+    # Remove skills
     for skill in create-command refresh-slash-names; do
         target="$SKILLS_DIR/$skill"
         if [[ -d "$target" ]]; then
@@ -120,7 +151,5 @@ else
 
     remove_hook_entry "$SETTINGS" "$HOOK_SCRIPT"
 
-    printf '\nDone.\n\n'
-    printf 'Your command scripts in ~/.claude/commands/ were not removed.\n'
-    printf 'To also remove them: rm -rf ~/.claude/commands/\n'
+    printf '\nDone.\n'
 fi

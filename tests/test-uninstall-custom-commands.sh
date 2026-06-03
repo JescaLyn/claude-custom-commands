@@ -57,17 +57,20 @@ printf '\nProject uninstall:\n'
 PROJECT_CMDS="$TEMP_PROJECT/.claude/commands"
 PROJECT_HOOKS="$TEMP_PROJECT/.claude/hooks"
 PROJECT_SKILLS="$TEMP_PROJECT/.claude/skills"
-mkdir -p "$PROJECT_CMDS" "$PROJECT_HOOKS" "$PROJECT_SKILLS/create-command"
+PROJECT_CONSTANTS="$TEMP_PROJECT/.claude/constants"
+mkdir -p "$PROJECT_CMDS" "$PROJECT_HOOKS" "$PROJECT_SKILLS/create-command" "$PROJECT_CONSTANTS"
 # Repo-managed commands — must be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/ping.sh"
 printf 'ping\n'               > "$PROJECT_CMDS/ping.md"
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/now.sh"
 # Non-repo command — must NOT be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/my-custom.sh"
-# Repo-installed hooks and skills
+# Repo-installed hooks, skills, and constants
 printf '#!/usr/bin/env bash\n' > "$PROJECT_HOOKS/dispatch-commands.sh"
 printf '#!/usr/bin/env bash\n' > "$PROJECT_HOOKS/check-slash-conflict.sh"
 printf 'name: create-command\n' > "$PROJECT_SKILLS/create-command/SKILL.md"
+printf 'clear\n' > "$PROJECT_CONSTANTS/builtin-commands.txt"
+printf 'review\n' > "$PROJECT_CONSTANTS/bundled-skills.txt"
 # settings.json with hook entry using ${CLAUDE_PROJECT_DIR}
 printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
     > "$TEMP_PROJECT/.claude/settings.json"
@@ -104,6 +107,11 @@ check "exits 0 for project uninstall" 0 bash "$CMD" "$TEMP_PROJECT"
 } || {
     printf '  FAIL  create-command skill still present in project\n'; (( fail++ )) || true
 }
+[[ ! -f "$PROJECT_CONSTANTS/builtin-commands.txt" ]] && {
+    printf '  PASS  builtin-commands.txt removed from project\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  builtin-commands.txt still present in project\n'; (( fail++ )) || true
+}
 PROJ_SETTINGS_CONTENT=$(cat "$TEMP_PROJECT/.claude/settings.json" 2>/dev/null || true)
 if ! printf '%s' "$PROJ_SETTINGS_CONTENT" | grep -q 'UserPromptSubmit'; then
     printf '  PASS  hook entry removed from project settings.json\n'; (( pass++ )) || true
@@ -117,10 +125,18 @@ TEMP_HOME=$(mktemp -d)
 trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$EMPTY_PROJECT" "$TEMP_HOME"' EXIT
 
 # Simulate a prior install
-mkdir -p "$TEMP_HOME/.claude/hooks" "$TEMP_HOME/.claude/skills/create-command" \
+mkdir -p "$TEMP_HOME/.claude/hooks" "$TEMP_HOME/.claude/commands" \
+         "$TEMP_HOME/.claude/constants" \
+         "$TEMP_HOME/.claude/skills/create-command" \
          "$TEMP_HOME/.claude/skills/refresh-slash-names"
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/hooks/dispatch-commands.sh"
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/hooks/check-slash-conflict.sh"
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/ping.sh"
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/now.sh"
+printf 'clear\n' > "$TEMP_HOME/.claude/constants/builtin-commands.txt"
+printf 'review\n' > "$TEMP_HOME/.claude/constants/bundled-skills.txt"
+# User's own command — must NOT be removed
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/my-custom.sh"
 printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"%s/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
     "$TEMP_HOME" > "$TEMP_HOME/.claude/settings.json"
 
@@ -131,6 +147,21 @@ check "exits 0 for global uninstall from /tmp" 0 env HOME="$TEMP_HOME" bash "$CM
     printf '  PASS  dispatch hook removed\n'; (( pass++ )) || true
 } || {
     printf '  FAIL  dispatch hook still present\n'; (( fail++ )) || true
+}
+[[ ! -f "$TEMP_HOME/.claude/commands/ping.sh" ]] && {
+    printf '  PASS  ping.sh removed from global commands\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  ping.sh still present in global commands\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME/.claude/commands/my-custom.sh" ]] && {
+    printf '  PASS  non-repo global command preserved\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  non-repo global command was incorrectly removed\n'; (( fail++ )) || true
+}
+[[ ! -f "$TEMP_HOME/.claude/constants/builtin-commands.txt" ]] && {
+    printf '  PASS  builtin-commands.txt removed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  builtin-commands.txt still present\n'; (( fail++ )) || true
 }
 [[ ! -d "$TEMP_HOME/.claude/skills/create-command" ]] && {
     printf '  PASS  create-command skill removed\n'; (( pass++ )) || true
