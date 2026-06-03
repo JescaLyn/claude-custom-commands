@@ -41,7 +41,7 @@ else
     CONSTANTS_DIR="$HOME/.claude/constants"
     SKILLS_DIR="$HOME/.claude/skills"
     SETTINGS="$HOME/.claude/settings.json"
-    HOOK_CMD="$HOME/.claude/hooks/dispatch-commands.sh"
+    HOOK_CMD='$HOME/.claude/hooks/dispatch-commands.sh'
 fi
 
 HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
@@ -104,10 +104,13 @@ try:
     s = json.loads(open(settings_path).read()) if os.path.exists(settings_path) else {}
 except ValueError:
     s = {}
+home = os.environ.get("HOME", "")
+def norm(cmd):
+    return cmd.replace("$HOME", home) if home else cmd
 ups = s.setdefault("hooks", {}).setdefault("UserPromptSubmit", [])
 for entry in ups:
     for h in entry.get("hooks", []):
-        if h.get("command") == hook_cmd:
+        if norm(h.get("command", "")) == norm(hook_cmd):
             print("ALREADY_REGISTERED")
             sys.exit(0)
 ups.append({"hooks": [{"type": "command", "command": hook_cmd}]})

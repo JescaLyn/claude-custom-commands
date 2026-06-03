@@ -18,17 +18,20 @@ remove_hook_entry() {
     [[ -f "$settings_path" ]] || return 0
     local updated
     updated=$(python3 - "$settings_path" "$hook_cmd" << 'PYEOF'
-import json, sys
+import json, os, sys
 settings_path, hook_cmd = sys.argv[1], sys.argv[2]
 try:
     s = json.loads(open(settings_path).read())
 except (ValueError, OSError):
     print("NO_CHANGE")
     sys.exit(0)
+home = os.environ.get("HOME", "")
+def norm(cmd):
+    return cmd.replace("$HOME", home) if home else cmd
 ups = s.get("hooks", {}).get("UserPromptSubmit", [])
 filtered = [
     entry for entry in ups
-    if not any(h.get("command") == hook_cmd for h in entry.get("hooks", []))
+    if not any(norm(h.get("command", "")) == norm(hook_cmd) for h in entry.get("hooks", []))
 ]
 if len(filtered) == len(ups):
     print("NOT_FOUND")

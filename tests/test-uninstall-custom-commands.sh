@@ -137,8 +137,8 @@ printf 'clear\n' > "$TEMP_HOME/.claude/constants/builtin-commands.txt"
 printf 'review\n' > "$TEMP_HOME/.claude/constants/bundled-skills.txt"
 # User's own command — must NOT be removed
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/my-custom.sh"
-printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"%s/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
-    "$TEMP_HOME" > "$TEMP_HOME/.claude/settings.json"
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$HOME/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
+    > "$TEMP_HOME/.claude/settings.json"
 
 cd /tmp
 check "exits 0 for global uninstall from /tmp" 0 env HOME="$TEMP_HOME" bash "$CMD"
@@ -174,6 +174,22 @@ if ! printf '%s' "$SETTINGS_CONTENT" | grep -q 'UserPromptSubmit'; then
 else
     printf '  FAIL  hook entry still in settings.json\n'; (( fail++ )) || true
 fi
+
+# Settings.json with $HOME literal (as written by install-custom-commands.sh) — must also be removed
+TEMP_HOME2=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$EMPTY_PROJECT" "$TEMP_HOME" "$TEMP_HOME2"' EXIT
+mkdir -p "$TEMP_HOME2/.claude/hooks"
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME2/.claude/hooks/dispatch-commands.sh"
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$HOME/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
+    > "$TEMP_HOME2/.claude/settings.json"
+env HOME="$TEMP_HOME2" bash "$CMD" >/dev/null 2>&1 || true
+SETTINGS2_CONTENT=$(cat "$TEMP_HOME2/.claude/settings.json" 2>/dev/null || true)
+if ! printf '%s' "$SETTINGS2_CONTENT" | grep -q 'UserPromptSubmit'; then
+    printf '  PASS  hook entry removed when stored as $HOME literal\n'; (( pass++ )) || true
+else
+    printf '  FAIL  hook entry not removed when stored as $HOME literal\n'; (( fail++ )) || true
+fi
+
 cd "$ORIG_DIR"
 
 printf '\nResults: %d passed, %d failed\n' "$pass" "$fail"

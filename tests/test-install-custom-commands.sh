@@ -94,6 +94,11 @@ check "exits 0 for global install" 0 env HOME="$TEMP_HOME" bash "$CMD"
 } || {
     printf '  FAIL  hook not registered in settings.json\n'; (( fail++ )) || true
 }
+grep -q '\$HOME' "$TEMP_HOME/.claude/settings.json" 2>/dev/null && {
+    printf '  PASS  hook path uses $HOME literal (not expanded)\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  hook path was expanded instead of using $HOME literal\n'; (( fail++ )) || true
+}
 cd "$ORIG_DIR"
 
 # --- Project install ---
