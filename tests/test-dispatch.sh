@@ -104,6 +104,35 @@ check_output "failed command output appears in reason" 'failed' \
 check "passes through /clear when no clear.sh exists" 0 \
     bash -c "printf '{\"prompt\":\"/clear\"}' | bash '$DISPATCH'"
 
+# Global fallback: when CLAUDE_PROJECT_DIR is set but script is only in global commands,
+# the hook should fall back to ~/.claude/commands/ rather than passing through.
+TEMP_PROJECT=$(mktemp -d)
+TEMP_HOME=$(mktemp -d)
+mkdir -p "$TEMP_HOME/.claude/commands"
+cat > "$TEMP_HOME/.claude/commands/global-only.sh" << 'EOF'
+#!/usr/bin/env bash
+echo "from global"
+EOF
+
+unset CLAUDE_COMMANDS_DIR
+check_output "dispatches global command from inside a project session" '"block"' \
+    env CLAUDE_PROJECT_DIR="$TEMP_PROJECT" HOME="$TEMP_HOME" \
+        bash -c "printf '{\"prompt\":\"/global-only\"}' | bash '$DISPATCH'"
+check_output "global fallback output appears in reason" 'from global' \
+    env CLAUDE_PROJECT_DIR="$TEMP_PROJECT" HOME="$TEMP_HOME" \
+        bash -c "printf '{\"prompt\":\"/global-only\"}' | bash '$DISPATCH'"
+check "passes through unknown command with project and global dirs set" 0 \
+    env CLAUDE_PROJECT_DIR="$TEMP_PROJECT" HOME="$TEMP_HOME" \
+        bash -c "printf '{\"prompt\":\"/unknown-xyz\"}' | bash '$DISPATCH'"
+
+# Explicit CLAUDE_COMMANDS_DIR override should prevent global fallback
+check "does not fall back to global when CLAUDE_COMMANDS_DIR is explicitly set" 0 \
+    env CLAUDE_PROJECT_DIR="$TEMP_PROJECT" HOME="$TEMP_HOME" CLAUDE_COMMANDS_DIR="$TEMP_DIR" \
+        bash -c "printf '{\"prompt\":\"/global-only\"}' | bash '$DISPATCH'"
+
+rm -rf "$TEMP_PROJECT" "$TEMP_HOME"
+export CLAUDE_COMMANDS_DIR="$TEMP_DIR"
+
 # Cleanup
 rm -rf "$TEMP_DIR"
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook — dispatches slash commands to local scripts without inference.
 #
-# If the user types /foo and ~/.claude/commands/foo.sh exists,
-# runs that script and outputs JSON {decision:block} to suppress inference.
-# All other prompts exit 0 and pass through normally.
+# If the user types /foo, looks for foo.sh in the project-local commands dir first,
+# then falls back to ~/.claude/commands/foo.sh. Runs the script and outputs
+# JSON {decision:block} to suppress inference. All other prompts exit 0 and pass through.
 #
 # Installed to ~/.claude/hooks/dispatch-commands.sh by install.sh.
 
@@ -27,6 +27,12 @@ COMMAND="${COMMAND%% *}"
 [[ "$COMMAND" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] || exit 0
 
 SCRIPT="${COMMAND_DIR}/${COMMAND}.sh"
+
+# If not found project-locally, fall back to global commands.
+# Only applies when no explicit CLAUDE_COMMANDS_DIR override is set.
+if [[ ! -f "$SCRIPT" && -n "$_PROJ" && -z "${CLAUDE_COMMANDS_DIR:-}" ]]; then
+    SCRIPT="$HOME/.claude/commands/${COMMAND}.sh"
+fi
 
 # Pass through: no script registered for this command (let Claude handle it)
 [[ -f "$SCRIPT" ]] || exit 0
