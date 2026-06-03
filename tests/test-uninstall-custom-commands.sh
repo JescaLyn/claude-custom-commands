@@ -62,7 +62,6 @@ mkdir -p "$PROJECT_CMDS" "$PROJECT_HOOKS" "$PROJECT_SKILLS/create-command" "$PRO
 # Repo-managed commands — must be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/ping.sh"
 printf 'ping\n'               > "$PROJECT_CMDS/ping.md"
-printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/now.sh"
 # Non-repo command — must NOT be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/my-custom.sh"
 # Repo-installed hooks, skills, and constants
@@ -86,11 +85,6 @@ check "exits 0 for project uninstall" 0 bash "$CMD" "$TEMP_PROJECT"
     printf '  PASS  ping.md removed\n'; (( pass++ )) || true
 } || {
     printf '  FAIL  ping.md still present\n'; (( fail++ )) || true
-}
-[[ ! -f "$PROJECT_CMDS/now.sh" ]] && {
-    printf '  PASS  now.sh removed\n'; (( pass++ )) || true
-} || {
-    printf '  FAIL  now.sh still present\n'; (( fail++ )) || true
 }
 [[ -f "$PROJECT_CMDS/my-custom.sh" ]] && {
     printf '  PASS  non-repo command preserved\n'; (( pass++ )) || true
@@ -132,7 +126,6 @@ mkdir -p "$TEMP_HOME/.claude/hooks" "$TEMP_HOME/.claude/commands" \
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/hooks/dispatch-commands.sh"
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/hooks/check-slash-conflict.sh"
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/ping.sh"
-printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/now.sh"
 printf 'clear\n' > "$TEMP_HOME/.claude/constants/builtin-commands.txt"
 printf 'review\n' > "$TEMP_HOME/.claude/constants/bundled-skills.txt"
 # User's own command — must NOT be removed

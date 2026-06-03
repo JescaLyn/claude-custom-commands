@@ -65,9 +65,11 @@ printf '  Installed: %s\n' "$CONSTANTS_DIR/builtin-commands.txt"
 printf '  Installed: %s\n' "$CONSTANTS_DIR/bundled-skills.txt"
 
 # Copy commands (skip if the user already has a version)
+# now.sh is intentionally excluded — it lives in the repo as an example only
 printf '\nBuilt-in commands:\n'
 for cmd in "$REPO_DIR/.claude/commands/"*.sh; do
     name=$(basename "${cmd%.sh}")
+    [[ "$name" == "now" ]] && continue
     dest="$COMMAND_DIR/$name.sh"
     if [[ -f "$dest" ]]; then
         printf '  Skipped (exists): /%s\n' "$name"
@@ -80,6 +82,7 @@ done
 # Copy autocomplete stubs (skip if present; silently, no separate output)
 for stub in "$REPO_DIR/.claude/commands/"*.md; do
     [[ -f "$stub" ]] || continue
+    [[ "$(basename "$stub" .md)" == "now" ]] && continue
     dest="$COMMAND_DIR/$(basename "$stub")"
     [[ -f "$dest" ]] || cp "$stub" "$dest"
 done
@@ -127,7 +130,6 @@ fi
 printf '\nDone. Restart Claude Code for the hook to take effect.\n\n'
 printf 'Try it:\n'
 printf '  /ping          -- smoke test\n'
-printf '  /now           -- current date and time\n'
 printf '  /commands-help -- list all commands\n\n'
 printf 'Create or remove a command:\n'
 printf '  /create-command <description>             -- AI writes the script\n'
