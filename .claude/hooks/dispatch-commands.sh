@@ -59,11 +59,11 @@ fi
 # and cannot be suppressed.
 python3 -c "
 import json, sys
-cmd, output = sys.argv[1], sys.argv[2].rstrip('\n')
+label, output = sys.argv[1], sys.argv[2].rstrip('\n')
 lines = output.split('\n')
 prefix = '╭─ /'
-W = max(len(prefix) + len(cmd) + 3, max((len(l) for l in lines), default=0) + 3, 40)
-header = prefix + cmd + ' ' + '─' * (W - len(prefix) - len(cmd) - 1)
+W = max(len(prefix) + len(label) + 3, max((len(l) for l in lines), default=0) + 3, 40)
+header = prefix + label + ' ' + '─' * (W - len(prefix) - len(label) - 1)
 body   = '│\n' + '\n'.join('│ ' + l for l in lines)
 footer = '╰' + '─' * (W - 1)
 reason = '\n'.join(['\n' + header, body, footer])
@@ -72,5 +72,5 @@ print(json.dumps({
     'reason': reason,
     'hookSpecificOutput': {'hookEventName': 'UserPromptSubmit', 'suppressOriginalPrompt': True},
 }))
-" "$COMMAND" "$REASON"
+" "${COMMAND}${ARGS:+ $ARGS}" "$REASON"
 exit 0
