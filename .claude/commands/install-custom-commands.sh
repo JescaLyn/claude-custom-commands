@@ -35,6 +35,7 @@ if [[ -n "${1:-}" ]]; then
     # ${CLAUDE_PROJECT_DIR} is resolved by Claude Code at runtime — use it as a literal
     # so the hook path stays correct regardless of working directory.
     HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
+    CONFLICT_HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh'
 else
     COMMAND_DIR="$HOME/.claude/commands"
     HOOKS_DIR="$HOME/.claude/hooks"
@@ -42,6 +43,7 @@ else
     SKILLS_DIR="$HOME/.claude/skills"
     SETTINGS="$HOME/.claude/settings.json"
     HOOK_CMD='$HOME/.claude/hooks/dispatch-commands.sh'
+    CONFLICT_HOOK_CMD='$HOME/.claude/hooks/check-slash-conflict.sh'
 fi
 
 HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
@@ -70,6 +72,7 @@ printf '\nBuilt-in commands:\n'
 for cmd in "$REPO_DIR/.claude/commands/"*.sh; do
     name=$(basename "${cmd%.sh}")
     [[ "$name" == "now" ]] && continue
+    [[ "$name" == "install-custom-commands" ]] && continue
     dest="$COMMAND_DIR/$name.sh"
     if [[ -f "$dest" ]]; then
         printf '  Skipped (exists): /%s\n' "$name"
@@ -83,6 +86,7 @@ done
 for stub in "$REPO_DIR/.claude/commands/"*.md; do
     [[ -f "$stub" ]] || continue
     [[ "$(basename "$stub" .md)" == "now" ]] && continue
+    [[ "$(basename "$stub" .md)" == "install-custom-commands" ]] && continue
     dest="$COMMAND_DIR/$(basename "$stub")"
     [[ -f "$dest" ]] || cp "$stub" "$dest"
 done
@@ -125,6 +129,34 @@ if [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
 else
     printf '%s\n' "$UPDATED" > "$SETTINGS"
     printf '  Registered UserPromptSubmit hook in %s\n' "$SETTINGS"
+fi
+
+UPDATED=$(python3 - "$SETTINGS" "$CONFLICT_HOOK_CMD" << 'PYEOF'
+import json, sys, os
+settings_path, hook_cmd = sys.argv[1], sys.argv[2]
+try:
+    s = json.loads(open(settings_path).read()) if os.path.exists(settings_path) else {}
+except ValueError:
+    s = {}
+home = os.environ.get("HOME", "")
+def norm(cmd):
+    return cmd.replace("$HOME", home) if home else cmd
+pre = s.setdefault("hooks", {}).setdefault("PreToolUse", [])
+for entry in pre:
+    if entry.get("matcher") == "Write":
+        for h in entry.get("hooks", []):
+            if norm(h.get("command", "")) == norm(hook_cmd):
+                print("ALREADY_REGISTERED")
+                sys.exit(0)
+pre.append({"matcher": "Write", "hooks": [{"type": "command", "command": hook_cmd}]})
+print(json.dumps(s, indent=2))
+PYEOF
+)
+if [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
+    printf '  Conflict-check hook already registered in %s\n' "$SETTINGS"
+else
+    printf '%s\n' "$UPDATED" > "$SETTINGS"
+    printf '  Registered PreToolUse:Write hook in %s\n' "$SETTINGS"
 fi
 
 printf '\nDone. Restart Claude Code for the hook to take effect.\n\n'

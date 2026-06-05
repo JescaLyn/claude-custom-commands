@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # description: Register an existing bash script as a new custom command
-# usage: /create-command-from-script <name> <script-path>
+# usage: /create-command-from-script [--force] <name> <script-path>
 
 set -euo pipefail
 
@@ -10,8 +10,15 @@ COMMAND_DIR="${COMMAND_DIR:-$HOME/.claude/commands}"
 CHECK_SCRIPT="${CLAUDE_CHECK_SLASH_SCRIPT:-${_PROJ:+$_PROJ/.claude/hooks/check-slash-conflict.sh}}"
 CHECK_SCRIPT="${CHECK_SCRIPT:-$HOME/.claude/hooks/check-slash-conflict.sh}"
 
+FORCE=false
+if [[ "${1:-}" == "--force" ]]; then
+    FORCE=true
+    shift
+fi
+
 if [[ $# -lt 2 ]]; then
-    printf 'Usage: /create-command-from-script <name> <script-path>\n\n'
+    printf 'Usage: /create-command-from-script [--force] <name> <script-path>\n\n'
+    printf '  --force      Create even if the name conflicts with a built-in or existing command\n'
     printf '  name         Name for the new command (becomes /<name>)\n'
     printf '  script-path  Path to an existing bash script\n'
     exit 0
@@ -39,10 +46,13 @@ if [[ -f "$DEST" ]]; then
     exit 1
 fi
 
-if [[ -x "$CHECK_SCRIPT" ]]; then
-    WARNINGS=$("$CHECK_SCRIPT" "$NAME" 2>/dev/null || true)
-    if [[ -n "$WARNINGS" ]]; then
-        printf '%s\n\n' "$WARNINGS"
+if [[ "$FORCE" == "false" ]] && [[ -x "$CHECK_SCRIPT" ]]; then
+    CONFLICTS=$("$CHECK_SCRIPT" "$NAME" 2>/dev/null || true)
+    if [[ -n "$CONFLICTS" ]]; then
+        printf '%s\n\n' "$CONFLICTS"
+        printf 'Command not created. Re-run with --force to override:\n'
+        printf '  /create-command-from-script --force %s %s\n' "$NAME" "$SCRIPT_PATH"
+        exit 1
     fi
 fi
 

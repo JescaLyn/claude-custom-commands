@@ -55,6 +55,52 @@ PYEOF
     fi
 }
 
+# Remove the repo's PreToolUse:Write hook entry from a settings.json file.
+remove_pretooluse_entry() {
+    local settings_path="$1" hook_cmd="$2"
+    [[ -f "$settings_path" ]] || return 0
+    local updated
+    updated=$(python3 - "$settings_path" "$hook_cmd" << 'PYEOF'
+import json, os, sys
+settings_path, hook_cmd = sys.argv[1], sys.argv[2]
+try:
+    s = json.loads(open(settings_path).read())
+except (ValueError, OSError):
+    print("NO_CHANGE")
+    sys.exit(0)
+home = os.environ.get("HOME", "")
+def norm(cmd):
+    return cmd.replace("$HOME", home) if home else cmd
+pre = s.get("hooks", {}).get("PreToolUse", [])
+filtered = [
+    entry for entry in pre
+    if not (
+        entry.get("matcher") == "Write" and
+        any(norm(h.get("command", "")) == norm(hook_cmd) for h in entry.get("hooks", []))
+    )
+]
+if len(filtered) == len(pre):
+    print("NOT_FOUND")
+    sys.exit(0)
+if filtered:
+    s["hooks"]["PreToolUse"] = filtered
+else:
+    s["hooks"].pop("PreToolUse", None)
+    if not s["hooks"]:
+        del s["hooks"]
+print(json.dumps(s, indent=2))
+PYEOF
+    )
+    if [[ "$updated" == "NO_CHANGE" ]]; then
+        printf '  settings.json unreadable or invalid JSON -- skipped\n'
+    elif [[ "$updated" == "NOT_FOUND" ]]; then
+        printf '  Conflict-check hook not found in %s -- skipped\n' "$settings_path"
+    else
+        printf '%s\n' "$updated" > "$settings_path"
+        printf '  Removed conflict-check hook entry from %s\n' "$settings_path"
+    fi
+}
+
 if [[ -n "${1:-}" ]]; then
     PROJECT="${1/#~/$HOME}"
     if [[ ! -d "$PROJECT" ]]; then
@@ -67,7 +113,7 @@ if [[ -n "${1:-}" ]]; then
     # Remove command files
     COMMANDS_DIR="$PROJECT/.claude/commands"
     if [[ -d "$COMMANDS_DIR" ]]; then
-        for name in ping commands-help install-custom-commands uninstall-custom-commands \
+        for name in ping commands-help uninstall-custom-commands \
                     create-command-from-script remove-command; do
             removed=0
             [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
@@ -94,9 +140,11 @@ if [[ -n "${1:-}" ]]; then
         [[ -d "$target" ]] && { rm -rf "$target"; printf '  Removed: %s\n' "$target"; }
     done
 
-    # Remove hook entry from project settings.json
+    # Remove hook entries from project settings.json
     remove_hook_entry "$PROJECT/.claude/settings.json" \
         '${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
+    remove_pretooluse_entry "$PROJECT/.claude/settings.json" \
+        '${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh'
 
     printf '\nDone.\n'
 else
@@ -111,7 +159,7 @@ else
 
     # Remove command files
     if [[ -d "$COMMANDS_DIR" ]]; then
-        for name in ping commands-help install-custom-commands uninstall-custom-commands \
+        for name in ping commands-help uninstall-custom-commands \
                     create-command-from-script remove-command; do
             removed=0
             [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
@@ -153,6 +201,7 @@ else
     done
 
     remove_hook_entry "$SETTINGS" "$HOOK_SCRIPT"
+    remove_pretooluse_entry "$SETTINGS" "$CHECK_SCRIPT"
 
     printf '\nDone.\n'
 fi

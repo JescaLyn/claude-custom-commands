@@ -89,15 +89,25 @@ check "exits 0 for global install" 0 env HOME="$TEMP_HOME" bash "$CMD"
 } || {
     printf '  FAIL  now.sh was installed but should not be\n'; (( fail++ )) || true
 }
+[[ ! -f "$TEMP_HOME/.claude/commands/install-custom-commands.sh" ]] && {
+    printf '  PASS  install-custom-commands.sh not installed (repo-only)\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  install-custom-commands.sh was installed but should not be\n'; (( fail++ )) || true
+}
 [[ -d "$TEMP_HOME/.claude/skills/create-command" ]] && {
     printf '  PASS  skills installed\n'; (( pass++ )) || true
 } || {
     printf '  FAIL  skills missing\n'; (( fail++ )) || true
 }
 [[ -f "$TEMP_HOME/.claude/settings.json" ]] && grep -q 'UserPromptSubmit' "$TEMP_HOME/.claude/settings.json" && {
-    printf '  PASS  hook registered in settings.json\n'; (( pass++ )) || true
+    printf '  PASS  dispatch hook registered in settings.json\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  hook not registered in settings.json\n'; (( fail++ )) || true
+    printf '  FAIL  dispatch hook not registered in settings.json\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME/.claude/settings.json" ]] && grep -q 'check-slash-conflict' "$TEMP_HOME/.claude/settings.json" && {
+    printf '  PASS  conflict-check hook registered in settings.json\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  conflict-check hook not registered in settings.json\n'; (( fail++ )) || true
 }
 grep -q '\$HOME' "$TEMP_HOME/.claude/settings.json" 2>/dev/null && {
     printf '  PASS  hook path uses $HOME literal (not expanded)\n'; (( pass++ )) || true

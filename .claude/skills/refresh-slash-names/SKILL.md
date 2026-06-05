@@ -21,10 +21,11 @@ Fetch the page and extract both lists. Built-ins are commands that run without a
 
 **2. Resolve the constants directory**
 
+Always write to the global constants directory. Constants are facts about Claude Code itself, not project-specific — updating globally benefits all sessions including project ones.
+
 ```bash
-_PROJ="${CLAUDE_PROJECT_DIR:-}"
-CONSTANTS_DIR="${CLAUDE_CONSTANTS_DIR:-${_PROJ:+$_PROJ/.claude/constants}}"
-CONSTANTS_DIR="${CONSTANTS_DIR:-$HOME/.claude/constants}"
+CONSTANTS_DIR="${CLAUDE_CONSTANTS_DIR:-$HOME/.claude/constants}"
+mkdir -p "$CONSTANTS_DIR"
 ```
 
 **3. Write the files**

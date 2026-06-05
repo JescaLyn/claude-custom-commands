@@ -16,15 +16,15 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
 .claude/                                   mirrors ~/.claude/; install.sh copies these into place
   hooks/
     dispatch-commands.sh             UserPromptSubmit hook; runs scripts, returns JSON {decision:block}
-    check-slash-conflict.sh                warns if a name shadows a built-in or installed skill
+    check-slash-conflict.sh          PreToolUse:Write hook (and direct-mode checker); blocks new commands/skills conflicting with built-ins or existing names; approval-file mechanism to override
   constants/
-    builtin-commands.txt                   one built-in name per line; read by check-slash-conflict.sh
-    bundled-skills.txt                     one bundled skill name per line; read by check-slash-conflict.sh
+    builtin-commands.txt                   one built-in name per line; read by check-slash-conflict.sh; always written globally by refresh-slash-names
+    bundled-skills.txt                     one bundled skill name per line; read by check-slash-conflict.sh; always written globally by refresh-slash-names
   commands/
     ping.sh                                /ping — smoke test
-    now.sh                                 /now  — current date/time
+    now.sh                                 not installed — kept as a usage example only
     commands-help.sh                       /commands-help — list registered commands
-    install-custom-commands.sh             /install-custom-commands — install globally or into a project
+    install-custom-commands.sh             not installed globally — repo-only; requires repo dir to be present
     uninstall-custom-commands.sh           /uninstall-custom-commands — uninstall globally or remove from a project
     create-command-from-script.sh          /create-command-from-script — register a script as a command
     remove-command.sh                      /remove-command — uninstall a custom command
@@ -55,6 +55,8 @@ tests/test-integration.sh
 **install-custom-commands.sh is the install implementation**: `install.sh` and `uninstall.sh` at the project root are thin wrappers that delegate to the command scripts. The command scripts contain the actual logic so `/install-custom-commands` and `/uninstall-custom-commands` are self-contained — no delegation to a separate file required.
 
 **Project install scope**: Installing with a path arg (`/install-custom-commands /path/to/project`) is fully isolated — hooks, commands, skills, and constants all go to the project's `.claude/` directory. The hook is registered in the project's `.claude/settings.json` using `${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh` so it resolves correctly regardless of working directory. Nothing is written to `~/.claude/`.
+
+**Global-first constants lookup**: `check-slash-conflict.sh` and `refresh-slash-names` always read and write `~/.claude/constants/`, falling back to the project-local constants only if the global directory does not exist. Built-in command names and bundled skill names are facts about Claude Code itself, not project-specific — one global update benefits all sessions including project ones. Project installs still copy constants locally so the hook works even without a global install.
 
 **Global uninstall requires no repo dir**: `uninstall-custom-commands.sh` hardcodes all paths it removes (hooks, skill names, hook entry). Project uninstall hardcodes the list of command names this repo manages. Neither mode needs the repo to be present.
 

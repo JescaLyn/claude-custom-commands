@@ -70,8 +70,8 @@ printf '#!/usr/bin/env bash\n' > "$PROJECT_HOOKS/check-slash-conflict.sh"
 printf 'name: create-command\n' > "$PROJECT_SKILLS/create-command/SKILL.md"
 printf 'clear\n' > "$PROJECT_CONSTANTS/builtin-commands.txt"
 printf 'review\n' > "$PROJECT_CONSTANTS/bundled-skills.txt"
-# settings.json with hook entry using ${CLAUDE_PROJECT_DIR}
-printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
+# settings.json with both hook entries
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh"}]}],"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh"}]}]}}\n' \
     > "$TEMP_PROJECT/.claude/settings.json"
 
 check "exits 0 for project uninstall" 0 bash "$CMD" "$TEMP_PROJECT"
@@ -108,9 +108,14 @@ check "exits 0 for project uninstall" 0 bash "$CMD" "$TEMP_PROJECT"
 }
 PROJ_SETTINGS_CONTENT=$(cat "$TEMP_PROJECT/.claude/settings.json" 2>/dev/null || true)
 if ! printf '%s' "$PROJ_SETTINGS_CONTENT" | grep -q 'UserPromptSubmit'; then
-    printf '  PASS  hook entry removed from project settings.json\n'; (( pass++ )) || true
+    printf '  PASS  dispatch hook entry removed from project settings.json\n'; (( pass++ )) || true
 else
-    printf '  FAIL  hook entry still in project settings.json\n'; (( fail++ )) || true
+    printf '  FAIL  dispatch hook entry still in project settings.json\n'; (( fail++ )) || true
+fi
+if ! printf '%s' "$PROJ_SETTINGS_CONTENT" | grep -q 'check-slash-conflict'; then
+    printf '  PASS  conflict-check hook entry removed from project settings.json\n'; (( pass++ )) || true
+else
+    printf '  FAIL  conflict-check hook entry still in project settings.json\n'; (( fail++ )) || true
 fi
 
 # --- Global uninstall (HOME override, run from /tmp — no repo dir needed) ---
@@ -130,7 +135,7 @@ printf 'clear\n' > "$TEMP_HOME/.claude/constants/builtin-commands.txt"
 printf 'review\n' > "$TEMP_HOME/.claude/constants/bundled-skills.txt"
 # User's own command — must NOT be removed
 printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/my-custom.sh"
-printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$HOME/.claude/hooks/dispatch-commands.sh"}]}]}}\n' \
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"$HOME/.claude/hooks/dispatch-commands.sh"}]}],"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"$HOME/.claude/hooks/check-slash-conflict.sh"}]}]}}\n' \
     > "$TEMP_HOME/.claude/settings.json"
 
 cd /tmp
@@ -163,9 +168,14 @@ check "exits 0 for global uninstall from /tmp" 0 env HOME="$TEMP_HOME" bash "$CM
 }
 SETTINGS_CONTENT=$(cat "$TEMP_HOME/.claude/settings.json" 2>/dev/null || true)
 if ! printf '%s' "$SETTINGS_CONTENT" | grep -q 'UserPromptSubmit'; then
-    printf '  PASS  hook entry removed from settings.json\n'; (( pass++ )) || true
+    printf '  PASS  dispatch hook entry removed from settings.json\n'; (( pass++ )) || true
 else
-    printf '  FAIL  hook entry still in settings.json\n'; (( fail++ )) || true
+    printf '  FAIL  dispatch hook entry still in settings.json\n'; (( fail++ )) || true
+fi
+if ! printf '%s' "$SETTINGS_CONTENT" | grep -q 'check-slash-conflict'; then
+    printf '  PASS  conflict-check hook entry removed from settings.json\n'; (( pass++ )) || true
+else
+    printf '  FAIL  conflict-check hook entry still in settings.json\n'; (( fail++ )) || true
 fi
 
 # Settings.json with $HOME literal (as written by install-custom-commands.sh) — must also be removed

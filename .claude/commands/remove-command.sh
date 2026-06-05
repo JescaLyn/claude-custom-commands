@@ -7,8 +7,15 @@ set -euo pipefail
 _PROJ="${CLAUDE_PROJECT_DIR:-}"
 COMMAND_DIR="${CLAUDE_COMMANDS_DIR:-${_PROJ:+$_PROJ/.claude/commands}}"
 COMMAND_DIR="${COMMAND_DIR:-$HOME/.claude/commands}"
-CONSTANTS_DIR="${CLAUDE_CONSTANTS_DIR:-${_PROJ:+$_PROJ/.claude/constants}}"
-CONSTANTS_DIR="${CONSTANTS_DIR:-$HOME/.claude/constants}"
+if [[ -n "${CLAUDE_CONSTANTS_DIR:-}" ]]; then
+    CONSTANTS_DIR="$CLAUDE_CONSTANTS_DIR"
+elif [[ -d "$HOME/.claude/constants" ]]; then
+    CONSTANTS_DIR="$HOME/.claude/constants"
+elif [[ -n "$_PROJ" ]]; then
+    CONSTANTS_DIR="$_PROJ/.claude/constants"
+else
+    CONSTANTS_DIR="$HOME/.claude/constants"
+fi
 
 if [[ $# -eq 0 ]]; then
     printf 'Usage: /remove-command <name>\n\n'

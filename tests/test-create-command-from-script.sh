@@ -52,6 +52,9 @@ check "one arg shows usage and exits 0" 0 \
 check_output "usage shows command syntax" "Usage" \
     bash "$CMD"
 
+check_output "usage mentions --force flag" "force" \
+    bash "$CMD"
+
 # Invalid name
 check "rejects name starting with digit" 1 \
     bash "$CMD" "1bad" "/dev/null"
@@ -111,13 +114,29 @@ STUB_CHECK=$(mktemp "$TEMP_DIR/check-XXXX.sh")
 printf '#!/usr/bin/env bash\nprintf "WARNING: conflict detected for %%s\\n" "$1"\nexit 1\n' > "$STUB_CHECK"
 chmod +x "$STUB_CHECK"
 
-check_output "conflict warning appears in output" "WARNING" \
-    bash -c "CLAUDE_CHECK_SLASH_SCRIPT='$STUB_CHECK' bash '$CMD' 'warned-cmd' '$REAL_SCRIPT'"
+check "conflict blocks command creation" 1 \
+    bash -c "CLAUDE_CHECK_SLASH_SCRIPT='$STUB_CHECK' bash '$CMD' 'blocked-cmd' '$REAL_SCRIPT'"
 
-[[ -f "$TEMP_COMMANDS/warned-cmd.sh" ]] && {
-    printf '  PASS  command is still created despite warning\n'; (( pass++ )) || true
+check_output "conflict shows warning" "WARNING" \
+    bash -c "CLAUDE_CHECK_SLASH_SCRIPT='$STUB_CHECK' bash '$CMD' 'blocked-cmd' '$REAL_SCRIPT' || true"
+
+check_output "conflict shows --force instructions" "force" \
+    bash -c "CLAUDE_CHECK_SLASH_SCRIPT='$STUB_CHECK' bash '$CMD' 'blocked-cmd' '$REAL_SCRIPT' || true"
+
+[[ ! -f "$TEMP_COMMANDS/blocked-cmd.sh" ]] && {
+    printf '  PASS  command not created when conflict blocks\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  command not created after warning\n'; (( fail++ )) || true
+    printf '  FAIL  command was created despite conflict\n'; (( fail++ )) || true
+}
+
+# --force bypasses conflict check and creates anyway
+check "--force creates command despite conflict" 0 \
+    bash -c "CLAUDE_CHECK_SLASH_SCRIPT='$STUB_CHECK' bash '$CMD' --force 'forced-cmd' '$REAL_SCRIPT'"
+
+[[ -f "$TEMP_COMMANDS/forced-cmd.sh" ]] && {
+    printf '  PASS  command created with --force despite conflict\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  command not created with --force\n'; (( fail++ )) || true
 }
 
 # Cleanup

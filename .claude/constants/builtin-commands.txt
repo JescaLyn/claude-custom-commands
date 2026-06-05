@@ -1,7 +1,11 @@
+add-dir
+bg
 clear
 compact
 config
 context
+diff
+doctor
 exit
 fast
 feedback
@@ -12,6 +16,7 @@ logout
 memory
 model
 permissions
+plugin
 quit
 resume
 settings
@@ -19,4 +24,6 @@ skills
 status
 upgrade
 usage
+usage-credits
 version
+web-setup

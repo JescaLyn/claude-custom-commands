@@ -103,12 +103,82 @@ check "exits 1 for name matching existing custom command" 1 \
 check_output "warns about existing command" "WARNING" \
     bash -c "bash '$CHECK' existing-cmd || true"
 
-# Missing argument
-check "exits non-zero with no arguments" 1 \
-    bash "$CHECK"
+# --- Hook mode ---
+printf '\nHook mode:\n'
+
+TEMP_HOME=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_HOME"' EXIT
+# Hook mode derives paths from HOME; unset scope overrides so there's no bleed from direct mode tests
+unset CLAUDE_COMMANDS_DIR CLAUDE_SKILLS_DIR CLAUDE_CONSTANTS_DIR
+
+write_json() {
+    local tool="$1" file_path="$2" session="${3:-test-session}"
+    printf '{"tool_name":"%s","tool_input":{"file_path":"%s","content":""},"session_id":"%s"}' \
+        "$tool" "$file_path" "$session"
+}
+
+# Non-Write tool — silent pass
+check "non-Write tool exits 0" 0 \
+    bash -c "printf '%s' '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"echo hi\"}}' | bash '$CHECK'"
+
+# Write to unrelated path — silent pass
+check "Write to unrelated path exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write /tmp/foo.sh)' | HOME='$TEMP_HOME' bash '$CHECK'"
+
+# Write new command, clean name — pass
+check "Write new command, clean name exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/deploy.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+# Write new command, built-in conflict — block (exit 2)
+check "Write new command, built-in conflict exits 2" 2 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/clear.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+check_output "hook block message mentions conflict" "conflict" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/clear.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+check_output "hook block message includes approval instructions" "touch" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/clear.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Write to existing file — skip (not a new creation)
+mkdir -p "$TEMP_HOME/.claude/commands"
+touch "$TEMP_HOME/.claude/commands/existing.md"
+check "Write to existing command file exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/existing.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+# Write new skill, clean name — pass
+check "Write new skill, clean name exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/my-skill/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+# Write new skill, bundled skill conflict — informational warning (exits 2 so message surfaces, but auto-approvable)
+check "Write new skill, bundled skill conflict exits 2" 2 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/review/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+check_output "skill bundled conflict shows note not conflict header" "note" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/review/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Write new skill, existing custom command conflict — blocked with user confirmation required
+mkdir -p "$TEMP_HOME/.claude/commands"
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/deploy.sh"
+check "Write new skill, existing command conflict exits 2" 2 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/deploy/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+check_output "skill command conflict shows AskUserQuestion instruction" "AskUserQuestion" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/deploy/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Approval file present — allow and remove file
+APPROVAL_DIR="$TEMP_HOME/.claude/.tmp/sessions/test-session"
+mkdir -p "$APPROVAL_DIR"
+touch "$APPROVAL_DIR/slash-conflict-approved-clear"
+check "approval file present allows blocked write" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/clear.md" test-session)' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+[[ ! -f "$APPROVAL_DIR/slash-conflict-approved-clear" ]] && {
+    printf '  PASS  approval file removed after use\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  approval file not removed after use\n'; (( fail++ )) || true
+}
 
 # Cleanup
-rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS"
+rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_HOME"
 
 printf '\nResults: %d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

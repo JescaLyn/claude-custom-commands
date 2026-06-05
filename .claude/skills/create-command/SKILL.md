@@ -25,7 +25,9 @@ State the name you plan to use before proceeding.
 bash ~/.claude/hooks/check-slash-conflict.sh <name>
 ```
 
-If exit 1: show the warnings and ask whether to proceed or choose a different name. If exit 0: proceed. If the script is missing, skip this step and note it.
+If exit 0: proceed. If exit 1: show the warnings and ask whether to proceed or choose a different name. If the script is missing, skip this step and note it.
+
+If the user confirms proceeding despite conflicts: the `PreToolUse:Write` hook will block the `.md` autocomplete stub write in step 3. The hook's error message includes the exact approval command to run before retrying — run it via Bash, then retry the Write.
 
 **2. Generate the script**
 

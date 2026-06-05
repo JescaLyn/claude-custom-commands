@@ -9,6 +9,8 @@
 
 set -euo pipefail
 
+cd "$HOME"  # python3 needs an accessible CWD to import modules
+
 _PROJ="${CLAUDE_PROJECT_DIR:-}"
 COMMAND_DIR="${CLAUDE_COMMANDS_DIR:-${_PROJ:+$_PROJ/.claude/commands}}"
 COMMAND_DIR="${COMMAND_DIR:-$HOME/.claude/commands}"
