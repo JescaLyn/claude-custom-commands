@@ -103,23 +103,26 @@ print(sid)
 
         [[ ${#SKILL_BLOCKS[@]} -eq 0 ]] && [[ ${#SKILL_NOTES[@]} -eq 0 ]] && exit 0
 
-        {
-            if [[ ${#SKILL_BLOCKS[@]} -gt 0 ]]; then
+        if [[ ${#SKILL_BLOCKS[@]} -gt 0 ]]; then
+            {
                 printf 'Slash command conflict: /%s\n\n' "$NAME"
                 for b in "${SKILL_BLOCKS[@]}"; do printf '  • %s\n' "$b"; done
                 [[ ${#SKILL_NOTES[@]} -gt 0 ]] && { printf '\nAlso note:\n'; for n in "${SKILL_NOTES[@]}"; do printf '  • %s\n' "$n"; done; }
                 printf '\nUse AskUserQuestion to ask the user:\n'
                 printf '  "/%s already has a custom command that will intercept it. Remove the command first, or create the skill anyway?"\n' "$NAME"
                 printf '  Options: "Remove the command first" / "Create the skill anyway"\n\n'
-            else
+                printf 'If the user confirms, run this before retrying the write:\n'
+                printf '  mkdir -p "%s" && touch "%s"\n' "$(dirname "$APPROVAL_FILE")" "$APPROVAL_FILE"
+            } >&2
+            exit 2
+        else
+            {
                 printf 'Slash command note: /%s\n\n' "$NAME"
                 for n in "${SKILL_NOTES[@]}"; do printf '  • %s\n' "$n"; done
-                printf '\nBoth will be available in the slash menu — no action needed from the user.\n\n'
-            fi
-            printf 'If proceeding, run this before retrying the write:\n'
-            printf '  mkdir -p "%s" && touch "%s"\n' "$(dirname "$APPROVAL_FILE")" "$APPROVAL_FILE"
-        } >&2
-        exit 2
+                printf '\nBoth will appear in the slash menu — no action needed.\n'
+            } >&2
+            exit 0
+        fi
     fi
 fi
 
