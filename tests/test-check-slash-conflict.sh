@@ -149,8 +149,8 @@ check "Write to existing command file exits 0" 0 \
 check "Write new skill, clean name exits 0" 0 \
     bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/my-skill/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
 
-# Write new skill, bundled skill conflict — informational warning (exits 2 so message surfaces, but auto-approvable)
-check "Write new skill, bundled skill conflict exits 2" 2 \
+# Write new skill, bundled skill conflict — informational note only; write proceeds (exit 0)
+check "Write new skill, bundled skill conflict exits 0" 0 \
     bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/review/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
 
 check_output "skill bundled conflict shows note not conflict header" "note" \
