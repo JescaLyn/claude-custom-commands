@@ -4,12 +4,14 @@
 
 set -euo pipefail
 
-_PROJ="${CLAUDE_PROJECT_DIR:-}"
+_PROJ=""
+[[ -d "$PWD/.claude" ]] && _PROJ="$PWD"
 COMMAND_DIR="${CLAUDE_COMMANDS_DIR:-${_PROJ:+$_PROJ/.claude/commands}}"
 COMMAND_DIR="${COMMAND_DIR:-$HOME/.claude/commands}"
 CHECK_SCRIPT="${CLAUDE_CHECK_SLASH_SCRIPT:-${_PROJ:+$_PROJ/.claude/hooks/check-slash-conflict.sh}}"
 CHECK_SCRIPT="${CHECK_SCRIPT:-$HOME/.claude/hooks/check-slash-conflict.sh}"
 
+# --force: skip conflict check (either user override, or caller already checked)
 FORCE=false
 if [[ "${1:-}" == "--force" ]]; then
     FORCE=true

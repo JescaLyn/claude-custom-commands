@@ -99,6 +99,16 @@ check "exits 0 for global install" 0 env HOME="$TEMP_HOME" bash "$CMD"
 } || {
     printf '  FAIL  skills missing\n'; (( fail++ )) || true
 }
+[[ -f "$TEMP_HOME/.claude/skills/refresh-slash-names/write-slash-names.sh" ]] && {
+    printf '  PASS  write-slash-names.sh installed with skill\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  write-slash-names.sh missing from skill\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME/.claude/skills/create-command/create-command-preflight.sh" ]] && {
+    printf '  PASS  create-command-preflight.sh installed with skill\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  create-command-preflight.sh missing from skill\n'; (( fail++ )) || true
+}
 [[ -f "$TEMP_HOME/.claude/settings.json" ]] && grep -q 'UserPromptSubmit' "$TEMP_HOME/.claude/settings.json" && {
     printf '  PASS  dispatch hook registered in settings.json\n'; (( pass++ )) || true
 } || {
@@ -147,6 +157,16 @@ check "exits 0 for project install" 0 env HOME="$TEMP_HOME2" bash "$CMD" "$TEMP_
     printf '  PASS  skills installed to project dir\n'; (( pass++ )) || true
 } || {
     printf '  FAIL  skills missing from project dir\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_PROJECT/.claude/skills/refresh-slash-names/write-slash-names.sh" ]] && {
+    printf '  PASS  write-slash-names.sh installed to project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  write-slash-names.sh missing from project dir\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_PROJECT/.claude/skills/create-command/create-command-preflight.sh" ]] && {
+    printf '  PASS  create-command-preflight.sh installed to project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  create-command-preflight.sh missing from project dir\n'; (( fail++ )) || true
 }
 [[ -f "$TEMP_PROJECT/.claude/settings.json" ]] && grep -q 'CLAUDE_PROJECT_DIR' "$TEMP_PROJECT/.claude/settings.json" && {
     printf '  PASS  hook registered in project settings.json with ${CLAUDE_PROJECT_DIR}\n'; (( pass++ )) || true

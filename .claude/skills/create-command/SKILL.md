@@ -1,54 +1,45 @@
 ---
 name: create-command
 description: Create a new Claude Code custom command from a description. Generates a bash script and installs it to the project or global commands directory.
-argument-hint: "[name] <description>"
+argument-hint: "[--force] [name] <description>"
 allowed-tools: [Bash, Write]
 ---
 
-The user wants a new custom command — a deterministic bash script invoked as `/<name>` in Claude Code with no LLM inference.
-
-## Parse arguments
-
-`$ARGUMENTS` contains an optional name and a description. Parse it:
-
-- If the first token matches `[a-zA-Z][a-zA-Z0-9_-]*` and there are more tokens after it, treat the first token as the name and the remainder as the description.
-- Otherwise treat the entire string as the description and infer a short, lowercase, hyphenated name from it (e.g. "show current git branch" → `git-branch`).
-- If `$ARGUMENTS` is empty, ask the user to describe what the command should do.
-
-State the name you plan to use before proceeding.
-
-## Steps (max 2 name-negotiation rounds)
-
-**1. Check for conflicts**
-
-```bash
-bash ~/.claude/hooks/check-slash-conflict.sh <name>
+```!
+bash "${CLAUDE_SKILL_DIR}/create-command-preflight.sh" "$ARGUMENTS"
 ```
 
-If exit 0: proceed. If exit 1: show the warnings and ask whether to proceed or choose a different name. If the script is missing, skip this step and note it.
+Read the preflight output above and act on it.
 
-If the user confirms proceeding despite conflicts: the `PreToolUse:Write` hook will block the `.md` autocomplete stub write in step 3. The hook's error message includes the exact approval command to run before retrying — run it via Bash, then retry the Write.
+**Stop now if any of these apply:**
+- `error:` line present: tell the user and stop.
+- `installer: none`: stop — tell the user `create-command-from-script` is not installed and to re-run `/install-custom-commands`.
+- `conflict: blocked` with `force: false`: show the WARNING lines from the preflight output and stop — tell the user to re-run with `--force` to override, or choose a different name.
 
-**2. Generate the script**
+**If `name: infer`:** infer a short, lowercase, hyphenated name from `desc:` (e.g., "show current git branch" → `git-branch`). If `checker:` is not `none`, check for conflicts (one Bash call):
+```bash
+bash "<checker>" "<inferred-name>"
+```
+If exit 1: show the output and stop.
 
-Write a bash script that implements the description:
+State the name you will use before generating the script.
+
+## Generate the script
+
+Write a bash script implementing `desc:`:
 - `#!/usr/bin/env bash` header
 - `# description:` and `# usage:` lines
 - `set -euo pipefail`
 - Arguments via `$*`; output to stdout
 
-**3. Install**
+## Install
 
-Run this (Bash call) to resolve the target directory. Capture the printed path as `COMMANDS_DIR` for all subsequent steps:
+Write the generated script to the `tmpfile:` path using the Write tool. Then run (one Bash call):
 ```bash
-if [[ -d "$PWD/.claude" ]]; then echo "$PWD/.claude/commands"; else echo "$HOME/.claude/commands"; fi
+bash "<installer>" --force <name> "<tmpfile>"
+rm -f "<tmpfile>"
 ```
 
-1. `mkdir -p "$COMMANDS_DIR"`
-2. Write the generated script to `$COMMANDS_DIR/<name>.sh` using the `Write` tool.
-3. `chmod +x "$COMMANDS_DIR/<name>.sh"`
-4. Write an autocomplete stub to `$COMMANDS_DIR/<name>.md` with the one-line description as its only content (skip if the file already exists).
-
-**4. Confirm**
+## Confirm
 
 State the command name and a one-line summary of what it does.

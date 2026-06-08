@@ -97,8 +97,9 @@ for skill_dir in "$REPO_DIR/.claude/skills/"/*/; do
     skill=$(basename "$skill_dir")
     SKILL_DEST_DIR="$SKILLS_DIR/$skill"
     mkdir -p "$SKILL_DEST_DIR"
-    cp "$skill_dir/SKILL.md" "$SKILL_DEST_DIR/SKILL.md"
-    printf '  Installed: %s\n' "$SKILL_DEST_DIR/SKILL.md"
+    cp -r "$skill_dir/." "$SKILL_DEST_DIR/"
+    for f in "$SKILL_DEST_DIR/"*.sh; do [[ -f "$f" ]] && chmod +x "$f"; done
+    printf '  Installed: %s\n' "$SKILL_DEST_DIR"
 done
 
 # Register hook in settings.json

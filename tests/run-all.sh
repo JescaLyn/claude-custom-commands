@@ -22,6 +22,8 @@ run_suite test-create-command-from-script.sh
 run_suite test-remove-command.sh
 run_suite test-install-custom-commands.sh
 run_suite test-uninstall-custom-commands.sh
+run_suite test-write-slash-names.sh
+run_suite test-create-command-preflight.sh
 run_suite test-integration.sh
 
 printf '\nSuites: %d passed, %d failed\n' "$pass" "$fail"

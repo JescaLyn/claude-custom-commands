@@ -1,7 +1,7 @@
 ---
 name: refresh-slash-names
 description: Update the built-in command and bundled skill lists from the Claude Code documentation.
-allowed-tools: [WebSearch, WebFetch, Write, Bash]
+allowed-tools: [WebSearch, WebFetch, Bash]
 model: haiku
 effort: low
 context: fork
@@ -19,29 +19,26 @@ Search for the current Claude Code slash commands or CLI reference documentation
 
 Fetch the page and extract both lists. Built-ins are commands that run without an LLM call; bundled skills use inference.
 
-**2. Resolve the constants directories (Bash call)**
+**2. Run the write script**
 
-Always write to the global constants directory. If the current project also has a `.claude/constants/` directory, write there too — this keeps repo-bundled constants current for users who clone the project.
-
+Find the script (Bash call):
 ```bash
-GLOBAL_CONSTANTS="$HOME/.claude/constants"
-mkdir -p "$GLOBAL_CONSTANTS"
-PROJECT_CONSTANTS=""
-if [[ -d "$PWD/.claude/constants" ]]; then PROJECT_CONSTANTS="$PWD/.claude/constants"; fi
-echo "global=$GLOBAL_CONSTANTS"
-echo "project=${PROJECT_CONSTANTS:-none}"
+WRITER=""
+[[ -f "$HOME/.claude/skills/refresh-slash-names/write-slash-names.sh" ]] && WRITER="$HOME/.claude/skills/refresh-slash-names/write-slash-names.sh"
+[[ -z "$WRITER" && -f "$PWD/.claude/skills/refresh-slash-names/write-slash-names.sh" ]] && WRITER="$PWD/.claude/skills/refresh-slash-names/write-slash-names.sh"
+echo "${WRITER:-none}"
 ```
 
-Capture the two printed paths. Use the `global=` value as `$GLOBAL_CONSTANTS` and the `project=` value as `$PROJECT_CONSTANTS` (empty if output was `project=none`) in all subsequent steps.
+Capture the printed path as `WRITER`. If `none`, stop and tell the user the script is not installed — they may need to re-run `/install-custom-commands`.
 
-**3. Write the files**
+Otherwise, run this (Bash call), substituting the actual names extracted in step 1 into the `printf` arguments:
+```bash
+BUILTINS_TMP=$(mktemp)
+SKILLS_TMP=$(mktemp)
+printf '%s\n' <builtin-name-1> <builtin-name-2> ... > "$BUILTINS_TMP"
+printf '%s\n' <skill-name-1> <skill-name-2> ...    > "$SKILLS_TMP"
+bash "$WRITER" "$BUILTINS_TMP" "$SKILLS_TMP"
+rm -f "$BUILTINS_TMP" "$SKILLS_TMP"
+```
 
-Write one name per line (no leading slash, sorted alphabetically) to:
-- `$GLOBAL_CONSTANTS/builtin-commands.txt`
-- `$GLOBAL_CONSTANTS/bundled-skills.txt`
-
-If `$PROJECT_CONSTANTS` is non-empty, write the same content to the corresponding files there too.
-
-**4. Confirm**
-
-State how many built-ins and skills were written, the source URL, and whether project-local constants were also updated. Note: `check-slash-conflict.sh` reads the files at invocation time, so changes take effect immediately with no restart needed.
+Report the counts and paths printed by the script. Note: `check-slash-conflict.sh` reads the files at invocation time, so changes take effect immediately with no restart needed.

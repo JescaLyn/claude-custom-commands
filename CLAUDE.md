@@ -30,8 +30,10 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     create-command-from-script.sh          /create-command-from-script — register a script as a command
     remove-command.sh                      /remove-command — uninstall a custom command
   skills/
-    create-command/SKILL.md                /create-command — AI generates script from description, installs it
-    refresh-slash-names/SKILL.md           /refresh-slash-names — update built-in and skill constant lists
+    create-command/SKILL.md                /create-command — shell substitution calls preflight, then AI generates script and installs
+    create-command/create-command-preflight.sh  parses args, detects scope, locates tools, checks conflicts; runs before inference via SKILL.md shell substitution
+    refresh-slash-names/SKILL.md           /refresh-slash-names — fetches docs (inference), delegates write to script
+    refresh-slash-names/write-slash-names.sh  helper script; writes, normalizes, and confirms constants files
 
 install.sh                                 thin wrapper; delegates to install-custom-commands.sh
 uninstall.sh                               thin wrapper; delegates to uninstall-custom-commands.sh
@@ -42,6 +44,8 @@ tests/test-create-command-from-script.sh
 tests/test-remove-command.sh
 tests/test-install-custom-commands.sh
 tests/test-uninstall-custom-commands.sh
+tests/test-write-slash-names.sh
+tests/test-create-command-preflight.sh
 tests/test-integration.sh
 ```
 
@@ -60,6 +64,8 @@ tests/test-integration.sh
 **Global-first constants lookup**: `check-slash-conflict.sh` always reads `~/.claude/constants/`, falling back to project-local constants only if the global directory does not exist. Built-in command names and bundled skill names are facts about Claude Code itself — one global update benefits all sessions. Project installs still copy constants locally so the hook works even without a global install.
 
 **`refresh-slash-names` dual-write**: Always writes to `~/.claude/constants/`. Additionally, if run from a project that has `.claude/constants/`, writes there too. This keeps the repo's bundled constants current so users who clone it get an up-to-date baseline without needing to run the skill themselves first.
+
+**`create-command` shell substitution preflight**: SKILL.md uses a `` ```! `` shell substitution block to run `create-command-preflight.sh` before inference. The script parses `$ARGUMENTS`, detects scope (`$PWD/.claude`), locates the installer and conflict checker, creates a tmpfile, and checks for conflicts (when the name is explicit and `--force` is absent). Output is key-value lines embedded in the skill body; Claude reads them and acts deterministically on stop conditions. Inference is reserved for name inference (when omitted) and script generation. The preflight is a sibling file in `.claude/skills/create-command/` and is installed with the skill.
 
 **Global uninstall requires no repo dir**: `uninstall-custom-commands.sh` hardcodes all paths it removes (hooks, skill names, hook entry). Project uninstall hardcodes the list of command names this repo manages. Neither mode needs the repo to be present.
 
