@@ -39,10 +39,9 @@ Write a bash script that implements the description:
 
 **3. Install**
 
-Resolve the target directory:
+Run this (Bash call) to resolve the target directory. Capture the printed path as `COMMANDS_DIR` for all subsequent steps:
 ```bash
-COMMANDS_DIR="${CLAUDE_PROJECT_DIR:+$CLAUDE_PROJECT_DIR/.claude/commands}"
-COMMANDS_DIR="${COMMANDS_DIR:-$HOME/.claude/commands}"
+if [[ -d "$PWD/.claude" ]]; then echo "$PWD/.claude/commands"; else echo "$HOME/.claude/commands"; fi
 ```
 
 1. `mkdir -p "$COMMANDS_DIR"`

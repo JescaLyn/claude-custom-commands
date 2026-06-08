@@ -84,10 +84,10 @@ check "exits 0 for global install" 0 env HOME="$TEMP_HOME" bash "$CMD"
 } || {
     printf '  FAIL  commands missing\n'; (( fail++ )) || true
 }
-[[ ! -f "$TEMP_HOME/.claude/commands/now.sh" ]] && {
-    printf '  PASS  now.sh not installed (example-only)\n'; (( pass++ )) || true
+[[ -f "$TEMP_HOME/.claude/commands/now.sh" ]] && {
+    printf '  PASS  now.sh installed\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  now.sh was installed but should not be\n'; (( fail++ )) || true
+    printf '  FAIL  now.sh missing\n'; (( fail++ )) || true
 }
 [[ ! -f "$TEMP_HOME/.claude/commands/install-custom-commands.sh" ]] && {
     printf '  PASS  install-custom-commands.sh not installed (repo-only)\n'; (( pass++ )) || true

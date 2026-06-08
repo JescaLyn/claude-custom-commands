@@ -113,8 +113,8 @@ if [[ -n "${1:-}" ]]; then
     # Remove command files
     COMMANDS_DIR="$PROJECT/.claude/commands"
     if [[ -d "$COMMANDS_DIR" ]]; then
-        for name in ping commands-help uninstall-custom-commands \
-                    create-command-from-script remove-command; do
+        for name in commands-help create-command-from-script now ping \
+                    remove-command uninstall-custom-commands; do
             removed=0
             [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
             [[ -f "$COMMANDS_DIR/$name.md" ]] && { rm "$COMMANDS_DIR/$name.md"; removed=1; }
@@ -159,8 +159,8 @@ else
 
     # Remove command files
     if [[ -d "$COMMANDS_DIR" ]]; then
-        for name in ping commands-help uninstall-custom-commands \
-                    create-command-from-script remove-command; do
+        for name in commands-help create-command-from-script now ping \
+                    remove-command uninstall-custom-commands; do
             removed=0
             [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
             [[ -f "$COMMANDS_DIR/$name.md" ]] && { rm "$COMMANDS_DIR/$name.md"; removed=1; }

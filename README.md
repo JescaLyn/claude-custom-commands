@@ -12,57 +12,132 @@ cd claude-custom-commands
 claude
 ```
 
-In Claude Code, run `/install-custom-commands`. Or from the terminal: `./install.sh`.
-
-Restart Claude Code (`/exit`, then `claude` again), then try:
+### Install
 
 ```
-/ping
-/create-command show the current git branch
-/create-command-from-script deploy ./deploy.sh
+/install-custom-commands                    # global — writes to ~/.claude/
+/install-custom-commands /path/to/project   # project — writes to .claude/ only
 ```
 
-## Project Install
+Restart Claude Code after installing (`/exit`, then `claude` again).
 
-To install into a specific project instead of globally, run from the repo directory:
+### Try It Out
 
 ```
-/install-custom-commands /path/to/project
+# custom commands (no inference):
+/ping                                                    # confirm the dispatcher is active
+/now                                                     # current date and time
+/commands-help                                           # list all registered commands
+/create-command-from-script deploy ./deploy.sh           # register your own script
+
+# skill (uses inference):
+/create-command show the current git branch              # describe it; Claude writes the script
+/create-command git-branch show the current git branch   # same, with an explicit name
 ```
 
-Or from the terminal: `./install.sh /path/to/project`. This copies hooks, commands, skills, and constants into the project's `.claude/` directory and registers the hook in its `settings.json`. Nothing is written to `~/.claude/`.
+## Uninstall
+
+```
+/uninstall-custom-commands                    # global uninstall
+/uninstall-custom-commands /path/to/project   # remove from a specific project
+```
+
+If Claude Code isn't available: `./uninstall.sh`. Your scripts in `~/.claude/commands/` are preserved — remove them manually if needed.
+
+## Minimal Install
+
+Installs just the dispatcher hook and an empty `commands/` directory — no management commands, skills, constants, or conflict-check hook. For project installs, adds a note to the project's README pointing to this repo.
+
+Run from the repo directory:
+
+```
+/install-custom-commands-minimal /path/to/project
+/install-custom-commands-minimal
+```
+
+**Use this** when you're adding custom command support to a project with its own bespoke commands and don't need the management scaffolding (`/ping`, `/commands-help`, `/create-command-from-script`, etc.). `/uninstall-custom-commands` works on both full and minimal installs.
+
+## Included Commands and Skills
+
+### Commands
+
+Deterministic scripts available via slash command — no inference.
+
+| Command                                       | What it does |
+|-----------------------------------------------|---|
+| `/commands-help`                              | List all registered custom commands |
+| `/create-command-from-script <name> <path>`   | Register an existing script as a command |
+| `/now`                                        | Show the current date and time |
+| `/ping`                                       | Confirm the dispatcher is active |
+| `/remove-command <name>`                      | Remove a custom command by name |
+| `/uninstall-custom-commands`                  | Uninstall globally; works from any directory |
+| `/uninstall-custom-commands <project-path>`   | Remove from a specific project |
+
+### Skills
+
+Use inference. Loaded from `.claude/skills/` or `~/.claude/skills/`.
+
+| Skill                                         | What it does |
+|-----------------------------------------------|---|
+| `/create-command [name] <description>`        | AI writes a bash script from your description and installs it |
+| `/refresh-slash-names`                        | Update the built-in command and bundled skill name lists |
+
+### This Repo Only
+
+Available only when running Claude Code from within this repository. Not installed globally or into projects.
+
+| Command                              | What it does |
+|--------------------------------------|---|
+| `/install-custom-commands`           | Full install — hooks, commands, skills, and constants |
+| `/install-custom-commands-minimal`   | Minimal install — dispatcher hook and empty `commands/` directory |
 
 ## How It Works
 
 A `UserPromptSubmit` hook intercepts all prompts before the model sees them. If you type `/deploy` and `~/.claude/commands/deploy.sh` exists, the hook runs that script and returns its output, suppressing inference entirely. Every other prompt passes through untouched in under 5ms.
+
+### Slash command types
+
+Claude Code has four kinds of slash commands:
+
+| Type | Defined by | Inference | Examples |
+|---|---|---|---|
+| Built-in commands | Anthropic (hardcoded in CLI) | No | `/clear`, `/compact`, `/model` |
+| Bundled skills | Anthropic | Yes | `/review`, `/init` |
+| Custom skills | User | Yes | `/create-command`, `/my-workflow` |
+| **Custom commands** | **User (this project)** | **No** | **`/ping`, `/deploy`** |
+
+Custom commands are the user-definable equivalent of built-in commands: fixed-logic operations backed by bash scripts, invoked with the same `/name` syntax as skills.
 
 ### Command output
 
 Every command output is preceded by a header line that Claude Code injects:
 
 ```
-UserPromptSubmit operation blocked by hook: [dispatch-commands.sh]: ╭─ /ping ─
-│ pong
-╰───
+UserPromptSubmit operation blocked by hook:
+
+╭─ /ping ────────────────────────────────────
+│
+│ pong — custom command dispatcher is active
+╰────────────────────────────────────────────
 ```
 
-The first line is hardcoded by Claude Code and cannot be suppressed. The box-framed output that follows is from the command script.
+The banner line is hardcoded by Claude Code and cannot be suppressed. The box-framed output that follows is from the command script.
 
-## Included Commands
+### Conflict checking
 
-Five commands and two skills are installed:
+A `PreToolUse:Write` hook (`check-slash-conflict.sh`) fires whenever Claude Code writes a new command or skill file. It checks the name against Claude Code's built-in commands and bundled skills, as well as any existing commands and skills at the same scope, and blocks the write if a conflict would cause a command to silently shadow something else. You can override the block when prompted.
 
-| Command | Type | What it does |
-|---|---|---|
-| `/ping` | custom command | Confirm the dispatcher is active |
-| `/commands-help` | custom command | List all registered custom commands |
-| `/uninstall-custom-commands` | custom command | Uninstall globally, or remove repo commands from a project with an optional path argument. Works from any directory. |
-| `/create-command-from-script` | custom command | Register an existing script as a command |
-| `/remove-command` | custom command | Remove an installed custom command by name |
-| `/create-command` | skill (uses inference) | Describe a command; Claude writes and installs it |
-| `/refresh-slash-names` | skill (uses inference) | Update built-in and bundled skill lists from the Claude Code docs |
+The `constants/` directory holds `builtin-commands.txt` and `bundled-skills.txt` — one name per line. These are what `check-slash-conflict.sh` reads to detect conflicts.
 
-`/install-custom-commands` is available when running Claude Code from the repo directory, but is not installed globally — it requires the repo to be present and is only useful from there.
+## Refreshing Slash Names
+
+Claude Code's built-in commands and bundled skills change between versions. The `constants/` directory stores the current lists; `check-slash-conflict.sh` reads them when checking for naming conflicts.
+
+```
+/refresh-slash-names
+```
+
+Run this after updating Claude Code, or any time the conflict checker flags a name that doesn't seem like a real conflict. When run from within this repository, it also updates `.claude/constants/` in the repo so the bundled constants stay current for users who clone it.
 
 ## Creating a Command
 
@@ -73,7 +148,7 @@ Five commands and two skills are installed:
 /create-command git-branch show the current git branch
 ```
 
-Claude checks for name conflicts with built-ins and installed skills, generates the script, and installs it.
+Claude checks for name conflicts with built-in commands and installed skills, generates the script, and installs it.
 
 **Register your own script:**
 
@@ -81,7 +156,7 @@ Claude checks for name conflicts with built-ins and installed skills, generates 
 /create-command-from-script deploy ~/scripts/deploy.sh
 ```
 
-Both check for name conflicts with built-ins and installed skills. `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
+Both check for name conflicts. `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
 
 **What a command script looks like:**
 
@@ -101,67 +176,7 @@ echo "Done."
 
 Scripts receive arguments as `$*`. Write output to stdout. Exit 0 = success, non-zero = error.
 
-## Slash Command Types in Claude Code
-
-| Type | Defined by | Inference | Examples |
-|---|---|---|---|
-| Built-in commands | Anthropic (hardcoded in CLI) | No | `/clear`, `/compact`, `/model` |
-| Skills | User or Anthropic | Yes | `/review`, `/create-command` |
-| **Custom commands** | **User (this project)** | **No** | `/ping`, `/deploy` |
-
-Custom commands are the user-definable equivalent of built-in commands: fixed-logic operations backed by bash scripts, invoked with the same `/name` syntax as skills.
-
-## Overriding an Included Command
-
-Edit any script in `~/.claude/commands/` directly. The install script skips files that already exist, so your edits survive reinstalls.
-
-## Updating
-
-After `git pull`, re-run the install to pick up hook and constant updates:
-
-```bash
-./install.sh
-```
-
-Command scripts are skipped if they already exist (to preserve your edits). Hooks and constants are always overwritten.
-
-## Testing
-
-```bash
-bash tests/test-dispatch.sh
-bash tests/test-check-slash-conflict.sh
-bash tests/test-create-command-from-script.sh
-bash tests/test-remove-command.sh
-bash tests/test-install-custom-commands.sh
-bash tests/test-uninstall-custom-commands.sh
-bash tests/test-integration.sh
-```
-
-To test `/create-command-from-script` end-to-end in Claude Code, open Claude Code from the repo root and type:
-
-```
-/create-command-from-script hello tests/sample-hello.sh
-```
-
-## Uninstall
-
-Run from any Claude Code session:
-
-```
-/uninstall-custom-commands
-```
-
-If Claude Code isn't available, use the terminal fallback:
-
-```bash
-./uninstall.sh
-```
-
-Your scripts in `~/.claude/commands/` are preserved. Remove them manually if needed:
-
-```bash
-rm -rf ~/.claude/commands/
-```
+To edit an included command, modify the script in `~/.claude/commands/` directly. The install script skips files that already exist, so edits survive reinstalls.
 
 ## Environment Variables
 
@@ -169,25 +184,13 @@ rm -rf ~/.claude/commands/
 |---|---|---|
 | `CLAUDE_COMMANDS_DIR` | project-local `.claude/commands/`, or `~/.claude/commands` outside a project | Override the directory where command scripts are looked up. Setting this suppresses the project-to-global fallback. |
 
----
+## Manual Install
 
-## Reference: Claude Code Built-In Commands
+Use the terminal directly when Claude Code isn't available:
 
-Built-in commands run without inference. If you register a custom command with the same name as a built-in, the dispatcher will intercept it and the built-in will no longer be reachable — `check-slash-conflict.sh` warns you when this would happen.
+```bash
+./install.sh                    # global
+./install.sh /path/to/project   # project
+```
 
-| Command | Purpose |
-|---|---|
-| `/clear` | Clear conversation history |
-| `/compact` | Compact conversation context |
-| `/config` | Open the config editor |
-| `/context` | Show context window usage |
-| `/help` | Show available commands |
-| `/hooks` | View active hooks and their sources |
-| `/memory` | View and edit memory files |
-| `/model` | Switch models |
-| `/permissions` | View permission settings |
-| `/settings` | View and edit settings |
-| `/skills` | Browse available skills |
-| `/usage` | Show token and cost usage for the session |
-
-Type `/help` in Claude Code for the authoritative list — the table above may not be exhaustive.
+Hook and constant files are always overwritten on reinstall. Command scripts are skipped if they already exist. After `git pull`, re-run `./install.sh` to pick up hook and constant updates.
