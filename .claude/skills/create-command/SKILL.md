@@ -1,7 +1,7 @@
 ---
 name: create-command
 description: Create a new Claude Code custom command from a description. Generates a bash script and installs it to the project or global commands directory.
-argument-hint: "[--force] [name] <description>"
+argument-hint: "[--force] [--global] [name] <description>"
 allowed-tools: [Bash, Write]
 ---
 
@@ -36,7 +36,7 @@ Write a bash script implementing `desc:`:
 
 Write the generated script to the `tmpfile:` path using the Write tool. Then run (one Bash call):
 ```bash
-bash "<installer>" --force <name> "<tmpfile>"
+bash "<installer>" <installer_flags> <name> "<tmpfile>"
 rm -f "<tmpfile>"
 ```
 

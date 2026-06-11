@@ -8,10 +8,12 @@
 #
 # Output (key: value):
 #   force: true|false
+#   global: true|false
 #   name:  <name>|infer
 #   desc:  <description>
 #   scope: project|global
 #   installer: <path>|none
+#   installer_flags: --force [--global]
 #   checker:   <path>|none
 #   tmpfile:   <path>
 #   conflict:  none|blocked
@@ -21,14 +23,24 @@ set -euo pipefail
 
 FULL_ARGS="${1:-}"
 
-# --- Parse --force ---
+# --- Parse flags (--force, --global) in any order ---
 FORCE=false
+GLOBAL=false
 REST="$FULL_ARGS"
-if [[ "$REST" == "--force" || "$REST" == "--force "* ]]; then
-    FORCE=true
-    REST="${REST#--force}"
-    REST="${REST#"${REST%%[! ]*}"}"  # trim leading spaces
-fi
+
+while true; do
+    if [[ "$REST" == "--force" || "$REST" == "--force "* ]]; then
+        FORCE=true
+        REST="${REST#--force}"
+        REST="${REST#"${REST%%[! ]*}"}"
+    elif [[ "$REST" == "--global" || "$REST" == "--global "* ]]; then
+        GLOBAL=true
+        REST="${REST#--global}"
+        REST="${REST#"${REST%%[! ]*}"}"
+    else
+        break
+    fi
+done
 
 # --- Handle empty ---
 if [[ -z "$REST" ]]; then
@@ -54,6 +66,12 @@ if [[ -d "$PWD/.claude" ]]; then
     PROJ_DIR="$PWD"
 fi
 
+# --global overrides auto-detected project scope
+if [[ "$GLOBAL" == "true" ]]; then
+    SCOPE="global"
+    PROJ_DIR=""
+fi
+
 # --- Find installer ---
 INSTALLER="none"
 if [[ -f "$HOME/.claude/commands/create-command-from-script.sh" ]]; then
@@ -73,6 +91,10 @@ fi
 # --- Create tmpfile ---
 TMPFILE=$(mktemp -t "create-command-XXXX.sh")
 
+# --- Installer flags (--force always; --global when scope is global) ---
+INSTALLER_FLAGS="--force"
+[[ "$GLOBAL" == "true" ]] && INSTALLER_FLAGS="--force --global"
+
 # --- Check conflicts (explicit name, not --force, checker available) ---
 CONFLICT="none"
 CONFLICT_DETAIL=""
@@ -85,10 +107,12 @@ fi
 
 # --- Output ---
 printf 'force: %s\n' "$FORCE"
+printf 'global: %s\n' "$GLOBAL"
 printf 'name: %s\n' "$NAME"
 printf 'desc: %s\n' "$DESC"
 printf 'scope: %s\n' "$SCOPE"
 printf 'installer: %s\n' "$INSTALLER"
+printf 'installer_flags: %s\n' "$INSTALLER_FLAGS"
 printf 'checker: %s\n' "$CHECKER"
 printf 'tmpfile: %s\n' "$TMPFILE"
 printf 'conflict: %s\n' "$CONFLICT"

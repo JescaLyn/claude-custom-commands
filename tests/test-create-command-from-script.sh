@@ -55,6 +55,9 @@ check_output "usage shows command syntax" "Usage" \
 check_output "usage mentions --force flag" "force" \
     bash "$CMD"
 
+check_output "usage mentions --global flag" "global" \
+    bash "$CMD"
+
 # Invalid name
 check "rejects name starting with digit" 1 \
     bash "$CMD" "1bad" "/dev/null"
@@ -138,6 +141,32 @@ check "--force creates command despite conflict" 0 \
 } || {
     printf '  FAIL  command not created with --force\n'; (( fail++ )) || true
 }
+
+# --global installs to home dir even when run from a project directory
+printf '\n--global flag:\n'
+TEMP_HOME_GLOBAL=$(mktemp -d)
+PROJ_DIR_GLOBAL=$(mktemp -d)
+mkdir -p "$PROJ_DIR_GLOBAL/.claude"
+GLOBAL_SCRIPT=$(mktemp "$TEMP_DIR/global-XXXX")
+printf '#!/usr/bin/env bash\necho "global test"\n' > "$GLOBAL_SCRIPT"
+chmod +x "$GLOBAL_SCRIPT"
+
+check "--global installs to home from project dir" 0 \
+    bash -c "cd '$PROJ_DIR_GLOBAL' && HOME='$TEMP_HOME_GLOBAL' CLAUDE_COMMANDS_DIR='' bash '$CMD' --global 'global-cmd' '$GLOBAL_SCRIPT'"
+
+[[ -f "$TEMP_HOME_GLOBAL/.claude/commands/global-cmd.sh" ]] && {
+    printf '  PASS  installed to global home dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  not installed to global home dir\n'; (( fail++ )) || true
+}
+
+[[ ! -f "$PROJ_DIR_GLOBAL/.claude/commands/global-cmd.sh" ]] && {
+    printf '  PASS  not installed to project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  incorrectly installed to project dir\n'; (( fail++ )) || true
+}
+
+rm -rf "$TEMP_HOME_GLOBAL" "$PROJ_DIR_GLOBAL"
 
 # Cleanup
 rm -rf "$TEMP_DIR" "$TEMP_COMMANDS"

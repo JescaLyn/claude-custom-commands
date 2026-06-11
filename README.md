@@ -156,7 +156,7 @@ Claude checks for name conflicts with built-in commands and installed skills, ge
 /create-command-from-script deploy ~/scripts/deploy.sh
 ```
 
-Both check for name conflicts. `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
+Both default to project scope when run inside a project (i.e. when `$PWD/.claude` exists), and global scope otherwise. Pass `--global` to force global install regardless. Both check for name conflicts: `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
 
 **What a command script looks like:**
 

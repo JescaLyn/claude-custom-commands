@@ -77,6 +77,30 @@ has_line "--forceful stays force: false"  "force: false"  env HOME="$TEMP/home" 
 has_line "--forceful stays in desc"      "desc: --forceful show date" env HOME="$TEMP/home" bash "$CMD" "--forceful show date"
 
 # -----------------------------------------------------------------------
+printf '\n--global parsing:\n'
+# -----------------------------------------------------------------------
+
+has_line "global: false without flag"   "global: false" env HOME="$TEMP/home" bash "$CMD" "show date"
+has_line "global: true with flag"       "global: true"  env HOME="$TEMP/home" bash "$CMD" "--global show date"
+no_line  "--global not in desc"         "desc: --global" env HOME="$TEMP/home" bash "$CMD" "--global show date"
+
+# Combined flags in either order
+has_line "--force --global: force true"  "force: true"  env HOME="$TEMP/home" bash "$CMD" "--force --global show date"
+has_line "--force --global: global true" "global: true" env HOME="$TEMP/home" bash "$CMD" "--force --global show date"
+has_line "--global --force: force true"  "force: true"  env HOME="$TEMP/home" bash "$CMD" "--global --force show date"
+has_line "--global --force: global true" "global: true" env HOME="$TEMP/home" bash "$CMD" "--global --force show date"
+
+# --global overrides project scope
+mkdir -p "$TEMP/myproject/.claude"
+(cd "$TEMP/myproject" && has_line "--global overrides project scope" "scope: global" env HOME="$TEMP/home" bash "$CMD" "--global show date")
+(cd "$TEMP/myproject" && no_line  "--global: scope not project"      "scope: project" env HOME="$TEMP/home" bash "$CMD" "--global show date")
+
+# installer_flags
+has_line "installer_flags: --force when not global"      "installer_flags: --force" env HOME="$TEMP/home" bash "$CMD" "show date"
+no_line  "installer_flags: no --global when not global"  "installer_flags: --force --global" env HOME="$TEMP/home" bash "$CMD" "show date"
+has_line "installer_flags: --force --global when global" "installer_flags: --force --global" env HOME="$TEMP/home" bash "$CMD" "--global show date"
+
+# -----------------------------------------------------------------------
 printf '\nName vs description parsing:\n'
 # -----------------------------------------------------------------------
 
@@ -88,6 +112,8 @@ has_line "first word becomes name in multi-word input" "name: show" env HOME="$T
 has_line "desc is remainder after name"               "desc: the current date and time" env HOME="$TEMP/home" bash "$CMD" "show the current date and time"
 has_line "name with --force"          "name: ping"         env HOME="$TEMP/home" bash "$CMD" "--force ping smoke test command"
 has_line "desc with --force"          "desc: smoke test command" env HOME="$TEMP/home" bash "$CMD" "--force ping smoke test command"
+has_line "name with --global"         "name: ping"         env HOME="$TEMP/home" bash "$CMD" "--global ping smoke test command"
+has_line "desc with --global"         "desc: smoke test command" env HOME="$TEMP/home" bash "$CMD" "--global ping smoke test command"
 
 # -----------------------------------------------------------------------
 printf '\nScope detection:\n'
@@ -95,7 +121,6 @@ printf '\nScope detection:\n'
 
 has_line "global when no .claude dir"  "scope: global" env HOME="$TEMP/home" bash "$CMD" "show date"
 
-mkdir -p "$TEMP/myproject/.claude"
 (cd "$TEMP/myproject" && has_line "project when .claude exists" "scope: project" env HOME="$TEMP/home" bash "$CMD" "show date")
 
 # -----------------------------------------------------------------------
@@ -193,6 +218,11 @@ has_line  "WARNING line in output"           "WARNING"           env HOME="$TEMP
 # --force skips conflict check even when name conflicts
 has_line  "conflict: none with --force"      "conflict: none"    env HOME="$TEMP/home" bash "$CMD" "--force conflicted do something"
 no_line   "no WARNING with --force"          "WARNING"           env HOME="$TEMP/home" bash "$CMD" "--force conflicted do something"
+
+# --global alone does NOT skip conflict check — only --force does.
+# --global sets scope=global and adds --global to installer_flags, but conflict check still runs.
+has_line  "conflict: blocked with --global alone"  "conflict: blocked" env HOME="$TEMP/home" bash "$CMD" "--global conflicted do something"
+has_line  "conflict: none with --force --global"   "conflict: none"    env HOME="$TEMP/home" bash "$CMD" "--force --global conflicted do something"
 
 # Infer name: no conflict check (name unknown at preflight time)
 has_line  "conflict: none for infer"         "conflict: none"    env HOME="$TEMP/home" bash "$CMD" "this is just a description"
