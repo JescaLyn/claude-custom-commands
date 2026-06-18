@@ -11,10 +11,9 @@ set -euo pipefail
 
 cd "$HOME"  # python3 needs an accessible CWD to import modules
 
-_PROJ="${CLAUDE_PROJECT_DIR:-}"
-COMMAND_DIR="${CLAUDE_COMMANDS_DIR:-${_PROJ:+$_PROJ/.claude/commands}}"
-COMMAND_DIR="${COMMAND_DIR:-$HOME/.claude/commands}"
-
+CURRENT_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
+PROJECT_COMMANDS_DIR="${CURRENT_PROJECT_DIR:+$CURRENT_PROJECT_DIR/.claude/commands}"
+GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
 INPUT=$(cat)
 PROMPT=$(printf '%s' "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('prompt',''))" 2>/dev/null) || PROMPT=""
 
@@ -28,12 +27,14 @@ COMMAND="${COMMAND%% *}"
 # Pass through: not a plain identifier (e.g., //, /123, /-flag)
 [[ "$COMMAND" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] || exit 0
 
-SCRIPT="${COMMAND_DIR}/${COMMAND}.sh"
-
-# If not found project-locally, fall back to global commands.
-# Only applies when no explicit CLAUDE_COMMANDS_DIR override is set.
-if [[ ! -f "$SCRIPT" && -n "$_PROJ" && -z "${CLAUDE_COMMANDS_DIR:-}" ]]; then
-    SCRIPT="$HOME/.claude/commands/${COMMAND}.sh"
+# Find script: test override → project → global
+SCRIPT=""
+if [[ -n "${CLAUDE_COMMANDS_DIR:-}" ]]; then
+    SCRIPT="${CLAUDE_COMMANDS_DIR}/${COMMAND}.sh"
+elif [[ -n "$PROJECT_COMMANDS_DIR" && -f "$PROJECT_COMMANDS_DIR/${COMMAND}.sh" ]]; then
+    SCRIPT="$PROJECT_COMMANDS_DIR/${COMMAND}.sh"
+elif [[ -f "$GLOBAL_COMMANDS_DIR/${COMMAND}.sh" ]]; then
+    SCRIPT="$GLOBAL_COMMANDS_DIR/${COMMAND}.sh"
 fi
 
 # Pass through: no script registered for this command (let Claude handle it)

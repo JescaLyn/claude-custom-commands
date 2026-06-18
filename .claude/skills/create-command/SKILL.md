@@ -18,7 +18,7 @@ Read the preflight output above and act on it.
 
 **If `name: infer`:** infer a short, lowercase, hyphenated name from `desc:` (e.g., "show current git branch" → `git-branch`). If `checker:` is not `none`, check for conflicts (one Bash call):
 ```bash
-bash "<checker>" "<inferred-name>"
+bash "<checker>" "<inferred-name>" "<checker_scope>"
 ```
 If exit 1: show the output and stop.
 
@@ -36,9 +36,10 @@ Write a bash script implementing `desc:`:
 
 Write the generated script to the `tmpfile:` path using the Write tool. Then run (one Bash call):
 ```bash
-bash "<installer>" <installer_flags> <name> "<tmpfile>"
+bash "<installer>" <installer_flags> <name> "<tmpfile>" [<project_path>]
 rm -f "<tmpfile>"
 ```
+Omit `<project_path>` entirely (do not pass an empty string) when `project_path:` is blank — blank means global install.
 
 ## Confirm
 

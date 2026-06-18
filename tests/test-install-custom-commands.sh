@@ -49,6 +49,11 @@ else
 fi
 cd "$ORIG_DIR"
 
+# CLAUDE_PROJECT_DIR overrides PWD (real hook invocation scenario)
+printf '\nCLAUDE_PROJECT_DIR override:\n'
+check "exits 0 when CLAUDE_PROJECT_DIR points to repo and PWD is ~" 0 \
+    bash -c "cd /tmp && CLAUDE_PROJECT_DIR='$REPO' HOME='$TEMP_HOME' bash '$CMD'"
+
 # --- Invalid project path ---
 printf '\nInvalid project path:\n'
 cd "$REPO"

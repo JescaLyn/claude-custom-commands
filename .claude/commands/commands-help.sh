@@ -4,9 +4,9 @@
 
 set -euo pipefail
 
-_PROJ="${CLAUDE_PROJECT_DIR:-}"
-PROJ_DIR="${CLAUDE_COMMANDS_DIR:-${_PROJ:+$_PROJ/.claude/commands}}"
-GLOB_DIR="$HOME/.claude/commands"
+CURRENT_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
+PROJECT_COMMANDS_DIR="${CLAUDE_COMMANDS_DIR:-${CURRENT_PROJECT_DIR:+$CURRENT_PROJECT_DIR/.claude/commands}}"
+GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
 
 _found=0
 list_commands() {
@@ -26,13 +26,13 @@ list_commands() {
     done
 }
 
-if [[ -n "$PROJ_DIR" && "$PROJ_DIR" != "$GLOB_DIR" && -d "$PROJ_DIR" ]]; then
-    printf 'Project commands (%s):\n\n' "$PROJ_DIR"
-    list_commands "$PROJ_DIR"
+if [[ -n "$PROJECT_COMMANDS_DIR" && "$PROJECT_COMMANDS_DIR" != "$GLOBAL_COMMANDS_DIR" && -d "$PROJECT_COMMANDS_DIR" ]]; then
+    printf 'Project commands (%s):\n\n' "$PROJECT_COMMANDS_DIR"
+    list_commands "$PROJECT_COMMANDS_DIR"
     [[ "$_found" -eq 0 ]] && printf '  No commands found.\n'
     printf '\n'
 fi
 
-printf 'Global commands (%s):\n\n' "$GLOB_DIR"
-list_commands "$GLOB_DIR"
+printf 'Global commands (%s):\n\n' "$GLOBAL_COMMANDS_DIR"
+list_commands "$GLOBAL_COMMANDS_DIR"
 [[ "$_found" -eq 0 ]] && printf '  No commands found.\n'

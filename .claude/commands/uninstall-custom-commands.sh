@@ -102,16 +102,16 @@ PYEOF
 }
 
 if [[ -n "${1:-}" ]]; then
-    PROJECT="${1/#~/$HOME}"
-    if [[ ! -d "$PROJECT" ]]; then
-        printf 'Error: project directory not found: %s\n' "$PROJECT" >&2
+    TARGET_PROJECT_DIR="${1/#~/$HOME}"
+    if [[ ! -d "$TARGET_PROJECT_DIR" ]]; then
+        printf 'Error: project directory not found: %s\n' "$TARGET_PROJECT_DIR" >&2
         exit 1
     fi
 
-    printf 'Removing custom commands from %s\n\n' "$PROJECT"
+    printf 'Removing custom commands from %s\n\n' "$TARGET_PROJECT_DIR"
 
     # Remove command files
-    COMMANDS_DIR="$PROJECT/.claude/commands"
+    COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
     if [[ -d "$COMMANDS_DIR" ]]; then
         for name in commands-help create-command-from-script now ping \
                     remove-command uninstall-custom-commands; do
@@ -123,27 +123,27 @@ if [[ -n "${1:-}" ]]; then
     fi
 
     # Remove constants
-    for f in "$PROJECT/.claude/constants/builtin-commands.txt" \
-             "$PROJECT/.claude/constants/bundled-skills.txt"; do
+    for f in "$TARGET_PROJECT_DIR/.claude/constants/builtin-commands.txt" \
+             "$TARGET_PROJECT_DIR/.claude/constants/bundled-skills.txt"; do
         [[ -f "$f" ]] && { rm "$f"; printf '  Removed: %s\n' "$f"; }
     done
 
     # Remove hook scripts
-    for f in "$PROJECT/.claude/hooks/dispatch-commands.sh" \
-             "$PROJECT/.claude/hooks/check-slash-conflict.sh"; do
+    for f in "$TARGET_PROJECT_DIR/.claude/hooks/dispatch-commands.sh" \
+             "$TARGET_PROJECT_DIR/.claude/hooks/check-slash-conflict.sh"; do
         [[ -f "$f" ]] && { rm "$f"; printf '  Removed: %s\n' "$f"; }
     done
 
     # Remove skills
     for skill in create-command refresh-slash-names; do
-        target="$PROJECT/.claude/skills/$skill"
+        target="$TARGET_PROJECT_DIR/.claude/skills/$skill"
         [[ -d "$target" ]] && { rm -rf "$target"; printf '  Removed: %s\n' "$target"; }
     done
 
     # Remove hook entries from project settings.json
-    remove_hook_entry "$PROJECT/.claude/settings.json" \
+    remove_hook_entry "$TARGET_PROJECT_DIR/.claude/settings.json" \
         '${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
-    remove_pretooluse_entry "$PROJECT/.claude/settings.json" \
+    remove_pretooluse_entry "$TARGET_PROJECT_DIR/.claude/settings.json" \
         '${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh'
 
     printf '\nDone.\n'

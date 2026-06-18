@@ -13,8 +13,10 @@
 #   desc:  <description>
 #   scope: project|global
 #   installer: <path>|none
-#   installer_flags: --force [--global]
+#   installer_flags: --force
+#   project_path: <path>|<empty>  (empty = global install)
 #   checker:   <path>|none
+#   checker_scope: --global|<project-path>
 #   tmpfile:   <path>
 #   conflict:  none|blocked
 #   (if blocked, WARNING: lines follow)
@@ -60,46 +62,52 @@ fi
 
 # --- Detect scope ---
 SCOPE="global"
-PROJ_DIR=""
+CURRENT_PROJECT_DIR=""
 if [[ -d "$PWD/.claude" ]]; then
     SCOPE="project"
-    PROJ_DIR="$PWD"
+    CURRENT_PROJECT_DIR="$PWD"
 fi
 
 # --global overrides auto-detected project scope
 if [[ "$GLOBAL" == "true" ]]; then
     SCOPE="global"
-    PROJ_DIR=""
+    CURRENT_PROJECT_DIR=""
 fi
 
 # --- Find installer ---
 INSTALLER="none"
 if [[ -f "$HOME/.claude/commands/create-command-from-script.sh" ]]; then
     INSTALLER="$HOME/.claude/commands/create-command-from-script.sh"
-elif [[ -n "$PROJ_DIR" && -f "$PROJ_DIR/.claude/commands/create-command-from-script.sh" ]]; then
-    INSTALLER="$PROJ_DIR/.claude/commands/create-command-from-script.sh"
+elif [[ -n "$CURRENT_PROJECT_DIR" && -f "$CURRENT_PROJECT_DIR/.claude/commands/create-command-from-script.sh" ]]; then
+    INSTALLER="$CURRENT_PROJECT_DIR/.claude/commands/create-command-from-script.sh"
 fi
 
 # --- Find conflict checker ---
 CHECKER="none"
 if [[ -f "$HOME/.claude/hooks/check-slash-conflict.sh" ]]; then
     CHECKER="$HOME/.claude/hooks/check-slash-conflict.sh"
-elif [[ -n "$PROJ_DIR" && -f "$PROJ_DIR/.claude/hooks/check-slash-conflict.sh" ]]; then
-    CHECKER="$PROJ_DIR/.claude/hooks/check-slash-conflict.sh"
+elif [[ -n "$CURRENT_PROJECT_DIR" && -f "$CURRENT_PROJECT_DIR/.claude/hooks/check-slash-conflict.sh" ]]; then
+    CHECKER="$CURRENT_PROJECT_DIR/.claude/hooks/check-slash-conflict.sh"
 fi
 
 # --- Create tmpfile ---
 TMPFILE=$(mktemp -t "create-command-XXXX.sh")
 
-# --- Installer flags (--force always; --global when scope is global) ---
+# --- Installer flags and scope args ---
+# project_path: passed as positional to installer; empty = global
 INSTALLER_FLAGS="--force"
-[[ "$GLOBAL" == "true" ]] && INSTALLER_FLAGS="--force --global"
+PROJECT_PATH_ARG=""
+[[ "$SCOPE" == "project" ]] && PROJECT_PATH_ARG="$CURRENT_PROJECT_DIR"
+
+# checker_scope: --global or project path, to tell the checker which scope we're installing into
+CHECKER_SCOPE_ARG="--global"
+[[ "$SCOPE" == "project" ]] && CHECKER_SCOPE_ARG="$CURRENT_PROJECT_DIR"
 
 # --- Check conflicts (explicit name, not --force, checker available) ---
 CONFLICT="none"
 CONFLICT_DETAIL=""
 if [[ "$NAME" != "infer" && "$FORCE" == "false" && "$CHECKER" != "none" ]]; then
-    CONFLICT_DETAIL=$(CLAUDE_PROJECT_DIR="$PROJ_DIR" bash "$CHECKER" "$NAME" 2>/dev/null || true)
+    CONFLICT_DETAIL=$(bash "$CHECKER" "$NAME" "$CHECKER_SCOPE_ARG" 2>/dev/null || true)
     if [[ -n "$CONFLICT_DETAIL" ]]; then
         CONFLICT="blocked"
     fi
@@ -113,7 +121,9 @@ printf 'desc: %s\n' "$DESC"
 printf 'scope: %s\n' "$SCOPE"
 printf 'installer: %s\n' "$INSTALLER"
 printf 'installer_flags: %s\n' "$INSTALLER_FLAGS"
+printf 'project_path: %s\n' "$PROJECT_PATH_ARG"
 printf 'checker: %s\n' "$CHECKER"
+printf 'checker_scope: %s\n' "$CHECKER_SCOPE_ARG"
 printf 'tmpfile: %s\n' "$TMPFILE"
 printf 'conflict: %s\n' "$CONFLICT"
 if [[ -n "$CONFLICT_DETAIL" ]]; then

@@ -5,14 +5,17 @@
 # Must be run from the claude-custom-commands repo directory — source files
 # (hooks, commands, skills) are copied from there.
 # Project installs are fully isolated: nothing is written to ~/.claude/.
+#
+# CLAUDE_PROJECT_DIR is set by Claude Code in hook subprocesses (cwd is $HOME, not the project).
+# Fall back to $PWD for direct invocation from the repo root.
 
 set -euo pipefail
 
-REPO_DIR="$PWD"
+CUSTOM_COMMANDS_REPO_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-if [[ ! -f "$REPO_DIR/.claude/hooks/dispatch-commands.sh" ]]; then
+if [[ ! -f "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/dispatch-commands.sh" ]]; then
     printf 'Run /install-custom-commands from the claude-custom-commands repo directory.\n' >&2
-    printf 'Current directory: %s\n' "$REPO_DIR" >&2
+    printf 'Current directory: %s\n' "$CUSTOM_COMMANDS_REPO_DIR" >&2
     exit 1
 fi
 
@@ -22,22 +25,22 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 if [[ -n "${1:-}" ]]; then
-    PROJECT="${1/#~/$HOME}"
-    if [[ ! -d "$PROJECT" ]]; then
-        printf 'Error: project directory not found: %s\n' "$PROJECT" >&2
+    TARGET_PROJECT_DIR="${1/#~/$HOME}"
+    if [[ ! -d "$TARGET_PROJECT_DIR" ]]; then
+        printf 'Error: project directory not found: %s\n' "$TARGET_PROJECT_DIR" >&2
         exit 1
     fi
-    COMMAND_DIR="$PROJECT/.claude/commands"
-    HOOKS_DIR="$PROJECT/.claude/hooks"
-    CONSTANTS_DIR="$PROJECT/.claude/constants"
-    SKILLS_DIR="$PROJECT/.claude/skills"
-    SETTINGS="$PROJECT/.claude/settings.json"
+    COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
+    CONSTANTS_DIR="$TARGET_PROJECT_DIR/.claude/constants"
+    SKILLS_DIR="$TARGET_PROJECT_DIR/.claude/skills"
+    SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
     # ${CLAUDE_PROJECT_DIR} is resolved by Claude Code at runtime — use it as a literal
     # so the hook path stays correct regardless of working directory.
     HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
     CONFLICT_HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh'
 else
-    COMMAND_DIR="$HOME/.claude/commands"
+    COMMANDS_DIR="$HOME/.claude/commands"
     HOOKS_DIR="$HOME/.claude/hooks"
     CONSTANTS_DIR="$HOME/.claude/constants"
     SKILLS_DIR="$HOME/.claude/skills"
@@ -51,28 +54,28 @@ CHECK_SCRIPT="$HOOKS_DIR/check-slash-conflict.sh"
 
 printf 'Installing custom command dispatcher...\n\n'
 
-mkdir -p "$HOOKS_DIR" "$COMMAND_DIR" "$CONSTANTS_DIR" "$SKILLS_DIR"
+mkdir -p "$HOOKS_DIR" "$COMMANDS_DIR" "$CONSTANTS_DIR" "$SKILLS_DIR"
 
 # Copy hooks
-cp "$REPO_DIR/.claude/hooks/dispatch-commands.sh" "$HOOK_SCRIPT"
-cp "$REPO_DIR/.claude/hooks/check-slash-conflict.sh" "$CHECK_SCRIPT"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/dispatch-commands.sh" "$HOOK_SCRIPT"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/check-slash-conflict.sh" "$CHECK_SCRIPT"
 chmod +x "$HOOK_SCRIPT" "$CHECK_SCRIPT"
 printf '  Installed: %s\n' "$HOOK_SCRIPT"
 printf '  Installed: %s\n' "$CHECK_SCRIPT"
 
 # Copy constants
-cp "$REPO_DIR/.claude/constants/builtin-commands.txt" "$CONSTANTS_DIR/builtin-commands.txt"
-cp "$REPO_DIR/.claude/constants/bundled-skills.txt" "$CONSTANTS_DIR/bundled-skills.txt"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/constants/builtin-commands.txt" "$CONSTANTS_DIR/builtin-commands.txt"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/constants/bundled-skills.txt" "$CONSTANTS_DIR/bundled-skills.txt"
 printf '  Installed: %s\n' "$CONSTANTS_DIR/builtin-commands.txt"
 printf '  Installed: %s\n' "$CONSTANTS_DIR/bundled-skills.txt"
 
 # Copy commands (skip if the user already has a version)
 printf '\nBuilt-in commands:\n'
-for cmd in "$REPO_DIR/.claude/commands/"*.sh; do
+for cmd in "$CUSTOM_COMMANDS_REPO_DIR/.claude/commands/"*.sh; do
     name=$(basename "${cmd%.sh}")
     [[ "$name" == "install-custom-commands" ]] && continue
     [[ "$name" == "install-custom-commands-minimal" ]] && continue
-    dest="$COMMAND_DIR/$name.sh"
+    dest="$COMMANDS_DIR/$name.sh"
     if [[ -f "$dest" ]]; then
         printf '  Skipped (exists): /%s\n' "$name"
     else
@@ -82,17 +85,17 @@ for cmd in "$REPO_DIR/.claude/commands/"*.sh; do
     fi
 done
 # Copy autocomplete stubs (skip if present; silently, no separate output)
-for stub in "$REPO_DIR/.claude/commands/"*.md; do
+for stub in "$CUSTOM_COMMANDS_REPO_DIR/.claude/commands/"*.md; do
     [[ -f "$stub" ]] || continue
     [[ "$(basename "$stub" .md)" == "install-custom-commands" ]] && continue
     [[ "$(basename "$stub" .md)" == "install-custom-commands-minimal" ]] && continue
-    dest="$COMMAND_DIR/$(basename "$stub")"
+    dest="$COMMANDS_DIR/$(basename "$stub")"
     [[ -f "$dest" ]] || cp "$stub" "$dest"
 done
 
 # Install skills (all subdirectories of .claude/skills/)
 printf '\nSkills:\n'
-for skill_dir in "$REPO_DIR/.claude/skills/"/*/; do
+for skill_dir in "$CUSTOM_COMMANDS_REPO_DIR/.claude/skills/"/*/; do
     [[ -d "$skill_dir" ]] || continue
     skill=$(basename "$skill_dir")
     SKILL_DEST_DIR="$SKILLS_DIR/$skill"

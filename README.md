@@ -66,10 +66,10 @@ Deterministic scripts available via slash command — no inference.
 | Command                                       | What it does |
 |-----------------------------------------------|---|
 | `/commands-help`                              | List all registered custom commands |
-| `/create-command-from-script <name> <path>`   | Register an existing script as a command |
+| `/create-command-from-script <name> <path> [project-path]` | Register an existing script as a command |
 | `/now`                                        | Show the current date and time |
 | `/ping`                                       | Confirm the dispatcher is active |
-| `/remove-command <name>`                      | Remove a custom command by name |
+| `/remove-command <name> [project-path]`       | Remove a custom command by name |
 | `/uninstall-custom-commands`                  | Uninstall globally; works from any directory |
 | `/uninstall-custom-commands <project-path>`   | Remove from a specific project |
 
@@ -154,9 +154,11 @@ Claude checks for name conflicts with built-in commands and installed skills, ge
 
 ```
 /create-command-from-script deploy ~/scripts/deploy.sh
+/create-command-from-script deploy ~/scripts/deploy.sh ~/projects/myapp
+/create-command-from-script --project ~/projects/myapp deploy ~/scripts/deploy.sh
 ```
 
-Both default to project scope when run inside a project (i.e. when `$PWD/.claude` exists), and global scope otherwise. Pass `--global` to force global install regardless. Both check for name conflicts: `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
+`/create-command-from-script` defaults to global scope; pass a project path as the final positional argument (or via `--project`) to install into a project instead. It also accepts `--name` and `--script` flags as alternatives to positional arguments, for cases where argument order is unclear. `/create-command` auto-detects scope from `$PWD/.claude`; pass `--global` to force global install. Both check for name conflicts: `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
 
 **What a command script looks like:**
 
@@ -182,7 +184,7 @@ To edit an included command, modify the script in `~/.claude/commands/` directly
 
 | Variable | Default | Description |
 |---|---|---|
-| `CLAUDE_COMMANDS_DIR` | project-local `.claude/commands/`, or `~/.claude/commands` outside a project | Override the directory where command scripts are looked up. Setting this suppresses the project-to-global fallback. |
+| `CLAUDE_COMMANDS_DIR` | (none) | Override the directory where command scripts are looked up. Suppresses both project-local and global lookup; useful for testing. |
 
 ## Manual Install
 

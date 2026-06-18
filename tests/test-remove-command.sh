@@ -107,6 +107,92 @@ check "refuses to remove a bundled skill" 1 \
 check_output "explains it is a bundled skill" "skill" \
     bash -c "bash '$CMD' 'review' || true"
 
+# Progressive lookup: project then global
+printf '\nProgressive lookup:\n'
+
+TEMP_HOME=$(mktemp -d)
+TEMP_PROJ_DIR=$(mktemp -d)
+mkdir -p "$TEMP_HOME/.claude/commands" "$TEMP_PROJ_DIR/.claude/commands"
+
+# Global-only command: found via fallback when in a project session
+printf '#!/usr/bin/env bash\necho hi\n' > "$TEMP_HOME/.claude/commands/glob-only.sh"
+chmod +x "$TEMP_HOME/.claude/commands/glob-only.sh"
+
+check "removes global command from project session" 0 \
+    bash -c "HOME='$TEMP_HOME' CLAUDE_PROJECT_DIR='$TEMP_PROJ_DIR' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' glob-only"
+[[ ! -f "$TEMP_HOME/.claude/commands/glob-only.sh" ]] && {
+    printf '  PASS  global .sh gone after removal\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  global .sh still exists\n'; (( fail++ )) || true
+}
+
+# Command in both scopes: project takes priority
+printf '#!/usr/bin/env bash\necho project\n' > "$TEMP_PROJ_DIR/.claude/commands/both.sh"
+printf '#!/usr/bin/env bash\necho global\n'  > "$TEMP_HOME/.claude/commands/both.sh"
+chmod +x "$TEMP_PROJ_DIR/.claude/commands/both.sh" "$TEMP_HOME/.claude/commands/both.sh"
+
+check "removes project copy when command exists in both scopes" 0 \
+    bash -c "HOME='$TEMP_HOME' CLAUDE_PROJECT_DIR='$TEMP_PROJ_DIR' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' both"
+[[ ! -f "$TEMP_PROJ_DIR/.claude/commands/both.sh" ]] && {
+    printf '  PASS  project copy removed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  project copy still exists\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_HOME/.claude/commands/both.sh" ]] && {
+    printf '  PASS  global copy preserved\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  global copy was incorrectly removed\n'; (( fail++ )) || true
+}
+
+# Not found in either scope: error mentions both dirs
+check_output "not found in project session mentions both dirs" "or" \
+    bash -c "HOME='$TEMP_HOME' CLAUDE_PROJECT_DIR='$TEMP_PROJ_DIR' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' notfound || true"
+
+# Explicit project path: only looks in that path, no fallback
+printf '\nExplicit project path:\n'
+
+printf '#!/usr/bin/env bash\necho proj-explicit\n' > "$TEMP_PROJ_DIR/.claude/commands/proj-explicit.sh"
+printf '#!/usr/bin/env bash\necho global-only\n'  > "$TEMP_HOME/.claude/commands/global-only2.sh"
+chmod +x "$TEMP_PROJ_DIR/.claude/commands/proj-explicit.sh" "$TEMP_HOME/.claude/commands/global-only2.sh"
+
+check "explicit project path removes from that project" 0 \
+    bash -c "HOME='$TEMP_HOME' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' proj-explicit '$TEMP_PROJ_DIR'"
+[[ ! -f "$TEMP_PROJ_DIR/.claude/commands/proj-explicit.sh" ]] && {
+    printf '  PASS  project copy removed with explicit path\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  project copy still exists\n'; (( fail++ )) || true
+}
+
+check "explicit path does not fall back to global" 1 \
+    bash -c "HOME='$TEMP_HOME' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' global-only2 '$TEMP_PROJ_DIR'"
+[[ -f "$TEMP_HOME/.claude/commands/global-only2.sh" ]] && {
+    printf '  PASS  global copy preserved when explicit path used\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  global copy incorrectly removed\n'; (( fail++ )) || true
+}
+
+check_output "explicit path not-found names the given dir" "not installed" \
+    bash -c "HOME='$TEMP_HOME' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' global-only2 '$TEMP_PROJ_DIR' || true"
+
+rm -rf "$TEMP_HOME" "$TEMP_PROJ_DIR"
+
+# Tilde expansion in project path
+printf '\nTilde expansion:\n'
+TEMP_TILDE_HOME=$(mktemp -d)
+mkdir -p "$TEMP_TILDE_HOME/myproject/.claude/commands"
+printf '#!/usr/bin/env bash\necho tilde\n' > "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-cmd.sh"
+chmod +x "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-cmd.sh"
+
+check "tilde-prefixed project path removes correctly" 0 \
+    bash -c "HOME='$TEMP_TILDE_HOME' CLAUDE_COMMANDS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' tilde-cmd '~/myproject'"
+[[ ! -f "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-cmd.sh" ]] && {
+    printf '  PASS  tilde path resolved and command removed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  tilde path did not resolve correctly\n'; (( fail++ )) || true
+}
+
+rm -rf "$TEMP_TILDE_HOME"
+
 # Cleanup
 rm -rf "$TEMP_COMMANDS" "$TEMP_CONSTANTS"
 

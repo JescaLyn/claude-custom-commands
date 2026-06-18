@@ -55,7 +55,7 @@ check_output "usage shows command syntax" "Usage" \
 check_output "usage mentions --force flag" "force" \
     bash "$CMD"
 
-check_output "usage mentions --global flag" "global" \
+check_output "usage mentions project-path option" "project" \
     bash "$CMD"
 
 # Invalid name
@@ -142,31 +142,88 @@ check "--force creates command despite conflict" 0 \
     printf '  FAIL  command not created with --force\n'; (( fail++ )) || true
 }
 
-# --global installs to home dir even when run from a project directory
-printf '\n--global flag:\n'
-TEMP_HOME_GLOBAL=$(mktemp -d)
-PROJ_DIR_GLOBAL=$(mktemp -d)
-mkdir -p "$PROJ_DIR_GLOBAL/.claude"
-GLOBAL_SCRIPT=$(mktemp "$TEMP_DIR/global-XXXX")
-printf '#!/usr/bin/env bash\necho "global test"\n' > "$GLOBAL_SCRIPT"
-chmod +x "$GLOBAL_SCRIPT"
+# Scope: global by default, project via positional path or --project flag
+printf '\nScope:\n'
+TEMP_HOME_SCOPE=$(mktemp -d)
+PROJ_DIR_SCOPE=$(mktemp -d)
+mkdir -p "$PROJ_DIR_SCOPE/.claude"
+SCOPE_SCRIPT=$(mktemp "$TEMP_DIR/scope-XXXX.sh")
+printf '#!/usr/bin/env bash\necho "scope test"\n' > "$SCOPE_SCRIPT"
+chmod +x "$SCOPE_SCRIPT"
 
-check "--global installs to home from project dir" 0 \
-    bash -c "cd '$PROJ_DIR_GLOBAL' && HOME='$TEMP_HOME_GLOBAL' CLAUDE_COMMANDS_DIR='' bash '$CMD' --global 'global-cmd' '$GLOBAL_SCRIPT'"
+check "default (no path) installs globally" 0 \
+    bash -c "HOME='$TEMP_HOME_SCOPE' CLAUDE_COMMANDS_DIR='' bash '$CMD' 'default-global' '$SCOPE_SCRIPT'"
 
-[[ -f "$TEMP_HOME_GLOBAL/.claude/commands/global-cmd.sh" ]] && {
+[[ -f "$TEMP_HOME_SCOPE/.claude/commands/default-global.sh" ]] && {
     printf '  PASS  installed to global home dir\n'; (( pass++ )) || true
 } || {
     printf '  FAIL  not installed to global home dir\n'; (( fail++ )) || true
 }
 
-[[ ! -f "$PROJ_DIR_GLOBAL/.claude/commands/global-cmd.sh" ]] && {
-    printf '  PASS  not installed to project dir\n'; (( pass++ )) || true
+check "positional project path installs to project" 0 \
+    bash -c "HOME='$TEMP_HOME_SCOPE' CLAUDE_COMMANDS_DIR='' bash '$CMD' 'proj-cmd' '$SCOPE_SCRIPT' '$PROJ_DIR_SCOPE'"
+
+[[ -f "$PROJ_DIR_SCOPE/.claude/commands/proj-cmd.sh" ]] && {
+    printf '  PASS  installed to project dir\n'; (( pass++ )) || true
 } || {
-    printf '  FAIL  incorrectly installed to project dir\n'; (( fail++ )) || true
+    printf '  FAIL  not installed to project dir\n'; (( fail++ )) || true
 }
 
-rm -rf "$TEMP_HOME_GLOBAL" "$PROJ_DIR_GLOBAL"
+[[ ! -f "$TEMP_HOME_SCOPE/.claude/commands/proj-cmd.sh" ]] && {
+    printf '  PASS  not installed to global dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  incorrectly installed to global dir\n'; (( fail++ )) || true
+}
+
+check "--project flag installs to project" 0 \
+    bash -c "HOME='$TEMP_HOME_SCOPE' CLAUDE_COMMANDS_DIR='' bash '$CMD' 'flag-cmd' '$SCOPE_SCRIPT' --project '$PROJ_DIR_SCOPE'"
+
+[[ -f "$PROJ_DIR_SCOPE/.claude/commands/flag-cmd.sh" ]] && {
+    printf '  PASS  --project flag installed to project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  --project flag did not install to project dir\n'; (( fail++ )) || true
+}
+
+rm -rf "$TEMP_HOME_SCOPE" "$PROJ_DIR_SCOPE"
+
+# Flag alternatives: --name and --script
+printf '\nFlag alternatives:\n'
+
+check "--name flag sets command name" 0 \
+    bash "$CMD" --name "flag-named" "$REAL_SCRIPT"
+
+[[ -f "$TEMP_COMMANDS/flag-named.sh" ]] && {
+    printf '  PASS  --name flag installed under correct name\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  --name flag did not install\n'; (( fail++ )) || true
+}
+
+check "--name and --script flags work together" 0 \
+    bash "$CMD" --name "flag-both" --script "$REAL_SCRIPT"
+
+[[ -f "$TEMP_COMMANDS/flag-both.sh" ]] && {
+    printf '  PASS  --name and --script flags installed correctly\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  --name and --script flags did not install\n'; (( fail++ )) || true
+}
+
+check "unknown flag exits 1" 1 \
+    bash "$CMD" "--unknown-flag" "foo" "$REAL_SCRIPT"
+
+# Tilde expansion in project path
+printf '\nTilde expansion:\n'
+TEMP_TILDE_HOME=$(mktemp -d)
+mkdir -p "$TEMP_TILDE_HOME/myproject/.claude"
+
+check "tilde-prefixed project path installs correctly" 0 \
+    bash -c "HOME='$TEMP_TILDE_HOME' CLAUDE_COMMANDS_DIR='' bash '$CMD' 'tilde-install' '$REAL_SCRIPT' '~/myproject'"
+[[ -f "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-install.sh" ]] && {
+    printf '  PASS  tilde path resolved and command installed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  tilde path did not resolve correctly\n'; (( fail++ )) || true
+}
+
+rm -rf "$TEMP_TILDE_HOME"
 
 # Cleanup
 rm -rf "$TEMP_DIR" "$TEMP_COMMANDS"

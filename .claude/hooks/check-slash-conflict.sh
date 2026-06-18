@@ -19,18 +19,18 @@ set -euo pipefail
 
 cd "$HOME"  # python3 needs an accessible CWD to import modules
 
-_PROJ="${CLAUDE_PROJECT_DIR:-}"
-COMMAND_DIR="${CLAUDE_COMMANDS_DIR:-${_PROJ:+$_PROJ/.claude/commands}}"
-COMMAND_DIR="${COMMAND_DIR:-$HOME/.claude/commands}"
-SKILLS_DIR="${CLAUDE_SKILLS_DIR:-${_PROJ:+$_PROJ/.claude/skills}}"
-SKILLS_DIR="${SKILLS_DIR:-$HOME/.claude/skills}"
+CURRENT_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
+PROJECT_COMMANDS_DIR="${CURRENT_PROJECT_DIR:+$CURRENT_PROJECT_DIR/.claude/commands}"
+GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
+PROJECT_SKILLS_DIR="${CURRENT_PROJECT_DIR:+$CURRENT_PROJECT_DIR/.claude/skills}"
+GLOBAL_SKILLS_DIR="$HOME/.claude/skills"
 # Constants are facts about Claude Code itself — prefer global, fall back to project-local.
 if [[ -n "${CLAUDE_CONSTANTS_DIR:-}" ]]; then
     CONSTANTS_DIR="$CLAUDE_CONSTANTS_DIR"
 elif [[ -d "$HOME/.claude/constants" ]]; then
     CONSTANTS_DIR="$HOME/.claude/constants"
-elif [[ -n "$_PROJ" ]]; then
-    CONSTANTS_DIR="$_PROJ/.claude/constants"
+elif [[ -n "$CURRENT_PROJECT_DIR" ]]; then
+    CONSTANTS_DIR="$CURRENT_PROJECT_DIR/.claude/constants"
 else
     CONSTANTS_DIR="$HOME/.claude/constants"
 fi
@@ -41,8 +41,33 @@ APPROVAL_FILE=""
 
 if [[ $# -ge 1 ]]; then
     NAME="$1"
-    # Infer scope from install target
-    [[ "$COMMAND_DIR" == "$HOME/.claude/"* ]] && IS_GLOBAL=true
+    # Determine scope: test-override env var > second arg (--global | project-path) > default global
+    if [[ -n "${CLAUDE_COMMANDS_DIR:-}" ]]; then
+        if [[ "$CLAUDE_COMMANDS_DIR" == "$HOME/.claude/"* ]]; then IS_GLOBAL=true; else IS_GLOBAL=false; fi
+    elif [[ "${2:-}" == "--global" ]]; then
+        IS_GLOBAL=true
+    elif [[ -n "${2:-}" ]]; then
+        TARGET_PROJECT_DIR="${2/#~/$HOME}"
+        PROJECT_COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+        PROJECT_SKILLS_DIR="$TARGET_PROJECT_DIR/.claude/skills"
+        IS_GLOBAL=false
+    else
+        IS_GLOBAL=true
+    fi
+    if [[ -n "${CLAUDE_COMMANDS_DIR:-}" ]]; then
+        RESOLVED_COMMANDS_DIR="$CLAUDE_COMMANDS_DIR"
+    elif [[ "$IS_GLOBAL" == "true" ]]; then
+        RESOLVED_COMMANDS_DIR="$GLOBAL_COMMANDS_DIR"
+    else
+        RESOLVED_COMMANDS_DIR="${PROJECT_COMMANDS_DIR:-$GLOBAL_COMMANDS_DIR}"
+    fi
+    if [[ -n "${CLAUDE_SKILLS_DIR:-}" ]]; then
+        RESOLVED_SKILLS_DIR="$CLAUDE_SKILLS_DIR"
+    elif [[ "$IS_GLOBAL" == "true" ]]; then
+        RESOLVED_SKILLS_DIR="$GLOBAL_SKILLS_DIR"
+    else
+        RESOLVED_SKILLS_DIR="${PROJECT_SKILLS_DIR:-$GLOBAL_SKILLS_DIR}"
+    fi
 else
     HOOK_MODE=true
     INPUT=$(cat)
@@ -80,17 +105,25 @@ print(sid)
         exit 0
     fi
 
+    if [[ "$IS_GLOBAL" == "true" ]]; then
+        RESOLVED_COMMANDS_DIR="$GLOBAL_COMMANDS_DIR"
+        RESOLVED_SKILLS_DIR="$GLOBAL_SKILLS_DIR"
+    else
+        RESOLVED_COMMANDS_DIR="${PROJECT_COMMANDS_DIR:-$GLOBAL_COMMANDS_DIR}"
+        RESOLVED_SKILLS_DIR="${PROJECT_SKILLS_DIR:-$GLOBAL_SKILLS_DIR}"
+    fi
+
     # Skill writes have different conflict semantics from command writes.
     if [[ "$IS_COMMAND" == "false" ]]; then
         SKILL_BLOCKS=()  # require user confirmation before proceeding
         SKILL_NOTES=()   # informational — model can auto-approve
 
         # Custom command at same name: the command script intercepts typed /name entirely.
-        if [[ -f "$COMMAND_DIR/$NAME.sh" ]]; then
-            SKILL_BLOCKS+=("A custom command exists at $COMMAND_DIR/$NAME.sh. The command script will run instead of this skill when /$NAME is typed directly. Remove the custom command first if you want the skill to take effect.")
+        if [[ -f "$RESOLVED_COMMANDS_DIR/$NAME.sh" ]]; then
+            SKILL_BLOCKS+=("A custom command exists at $RESOLVED_COMMANDS_DIR/$NAME.sh. The command script will run instead of this skill when /$NAME is typed directly. Remove the custom command first if you want the skill to take effect.")
         fi
-        if [[ "$IS_GLOBAL" == "false" ]] && [[ -f "$HOME/.claude/commands/$NAME.sh" ]]; then
-            SKILL_BLOCKS+=("A global custom command exists at ~/.claude/commands/$NAME.sh. It will intercept typed /$NAME in all sessions.")
+        if [[ "$IS_GLOBAL" == "false" ]] && [[ -f "$GLOBAL_COMMANDS_DIR/$NAME.sh" ]]; then
+            SKILL_BLOCKS+=("A global custom command exists at $GLOBAL_COMMANDS_DIR/$NAME.sh. It will intercept typed /$NAME in all sessions.")
         fi
 
         # Built-in/bundled at same name: both appear in the slash menu — informational only.
@@ -146,32 +179,32 @@ fi
 
 # Cross-scope: project-scope shadows global
 if [[ "$IS_GLOBAL" == "false" ]]; then
-    if [[ -d "$HOME/.claude/skills/$NAME" ]]; then
-        CONFLICTS+=("Project-scope /$NAME will shadow global skill ~/.claude/skills/$NAME/.")
+    if [[ -d "$GLOBAL_SKILLS_DIR/$NAME" ]]; then
+        CONFLICTS+=("Project-scope /$NAME will shadow global skill $GLOBAL_SKILLS_DIR/$NAME/.")
     fi
-    if [[ -f "$HOME/.claude/commands/$NAME.sh" ]]; then
-        CONFLICTS+=("Project-scope /$NAME will shadow global command ~/.claude/commands/$NAME.sh.")
+    if [[ -f "$GLOBAL_COMMANDS_DIR/$NAME.sh" ]]; then
+        CONFLICTS+=("Project-scope /$NAME will shadow global command $GLOBAL_COMMANDS_DIR/$NAME.sh.")
     fi
 fi
 
 # Cross-scope: global won't take effect in current project
-if [[ "$IS_GLOBAL" == "true" ]] && [[ -n "$_PROJ" ]]; then
-    if [[ -d "$_PROJ/.claude/skills/$NAME" ]]; then
-        CONFLICTS+=("Global /$NAME won't take effect in this project — $_PROJ/.claude/skills/$NAME/ already exists.")
+if [[ "$IS_GLOBAL" == "true" ]] && [[ -n "$PROJECT_COMMANDS_DIR" ]]; then
+    if [[ -d "$PROJECT_SKILLS_DIR/$NAME" ]]; then
+        CONFLICTS+=("Global /$NAME won't take effect in this project — $PROJECT_SKILLS_DIR/$NAME/ already exists.")
     fi
-    if [[ -f "$_PROJ/.claude/commands/$NAME.sh" ]]; then
-        CONFLICTS+=("Global /$NAME won't take effect in this project — $_PROJ/.claude/commands/$NAME.sh already exists.")
+    if [[ -f "$PROJECT_COMMANDS_DIR/$NAME.sh" ]]; then
+        CONFLICTS+=("Global /$NAME won't take effect in this project — $PROJECT_COMMANDS_DIR/$NAME.sh already exists.")
     fi
 fi
 
 # Same-scope: skill with this name already exists
-if [[ -d "$SKILLS_DIR/$NAME" ]]; then
-    CONFLICTS+=("/$NAME already exists as a skill at $SKILLS_DIR/$NAME/.")
+if [[ -d "$RESOLVED_SKILLS_DIR/$NAME" ]]; then
+    CONFLICTS+=("/$NAME already exists as a skill at $RESOLVED_SKILLS_DIR/$NAME/.")
 fi
 
 # Same-scope: command with this name already exists
-if [[ -f "$COMMAND_DIR/$NAME.sh" ]]; then
-    CONFLICTS+=("/$NAME already exists as a custom command at $COMMAND_DIR/$NAME.sh.")
+if [[ -f "$RESOLVED_COMMANDS_DIR/$NAME.sh" ]]; then
+    CONFLICTS+=("/$NAME already exists as a custom command at $RESOLVED_COMMANDS_DIR/$NAME.sh.")
 fi
 
 [[ ${#CONFLICTS[@]} -eq 0 ]] && exit 0

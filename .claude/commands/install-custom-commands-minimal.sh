@@ -10,11 +10,13 @@
 
 set -euo pipefail
 
-REPO_DIR="$PWD"
+# CLAUDE_PROJECT_DIR is set by Claude Code in hook subprocesses (cwd is $HOME, not the project).
+# Fall back to $PWD for direct invocation from the repo root.
+CUSTOM_COMMANDS_REPO_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-if [[ ! -f "$REPO_DIR/.claude/hooks/dispatch-commands.sh" ]]; then
+if [[ ! -f "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/dispatch-commands.sh" ]]; then
     printf 'Run /install-custom-commands-minimal from the claude-custom-commands repo directory.\n' >&2
-    printf 'Current directory: %s\n' "$REPO_DIR" >&2
+    printf 'Current directory: %s\n' "$CUSTOM_COMMANDS_REPO_DIR" >&2
     exit 1
 fi
 
@@ -26,18 +28,18 @@ fi
 IS_PROJECT=false
 if [[ -n "${1:-}" ]]; then
     IS_PROJECT=true
-    PROJECT="${1/#~/$HOME}"
-    if [[ ! -d "$PROJECT" ]]; then
-        printf 'Error: project directory not found: %s\n' "$PROJECT" >&2
+    TARGET_PROJECT_DIR="${1/#~/$HOME}"
+    if [[ ! -d "$TARGET_PROJECT_DIR" ]]; then
+        printf 'Error: project directory not found: %s\n' "$TARGET_PROJECT_DIR" >&2
         exit 1
     fi
-    HOOKS_DIR="$PROJECT/.claude/hooks"
-    COMMAND_DIR="$PROJECT/.claude/commands"
-    SETTINGS="$PROJECT/.claude/settings.json"
+    HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
+    COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
     HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
 else
     HOOKS_DIR="$HOME/.claude/hooks"
-    COMMAND_DIR="$HOME/.claude/commands"
+    COMMANDS_DIR="$HOME/.claude/commands"
     SETTINGS="$HOME/.claude/settings.json"
     HOOK_CMD='$HOME/.claude/hooks/dispatch-commands.sh'
 fi
@@ -46,9 +48,9 @@ HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
 
 printf 'Installing minimal custom command dispatcher...\n\n'
 
-mkdir -p "$HOOKS_DIR" "$COMMAND_DIR"
+mkdir -p "$HOOKS_DIR" "$COMMANDS_DIR"
 
-cp "$REPO_DIR/.claude/hooks/dispatch-commands.sh" "$HOOK_SCRIPT"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/dispatch-commands.sh" "$HOOK_SCRIPT"
 chmod +x "$HOOK_SCRIPT"
 printf '  Installed: %s\n' "$HOOK_SCRIPT"
 
@@ -81,7 +83,7 @@ else
 fi
 
 if [[ "$IS_PROJECT" == "true" ]]; then
-    README="$PROJECT/README.md"
+    README="$TARGET_PROJECT_DIR/README.md"
     NOTE='## Custom Commands
 
 This project has [custom commands](https://github.com/JescaLyn/claude-custom-commands) installed. Type `/name` in Claude Code to run deterministic bash scripts from `.claude/commands/`.'
@@ -99,4 +101,4 @@ This project has [custom commands](https://github.com/JescaLyn/claude-custom-com
 fi
 
 printf '\nDone. Restart Claude Code for the hook to take effect.\n\n'
-printf 'Place scripts in %s/<name>.sh to register a command.\n' "$COMMAND_DIR"
+printf 'Place scripts in %s/<name>.sh to register a command.\n' "$COMMANDS_DIR"

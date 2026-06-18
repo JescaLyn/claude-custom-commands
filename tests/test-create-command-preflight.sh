@@ -96,9 +96,12 @@ mkdir -p "$TEMP/myproject/.claude"
 (cd "$TEMP/myproject" && no_line  "--global: scope not project"      "scope: project" env HOME="$TEMP/home" bash "$CMD" "--global show date")
 
 # installer_flags
-has_line "installer_flags: --force when not global"      "installer_flags: --force" env HOME="$TEMP/home" bash "$CMD" "show date"
+has_line "installer_flags: --force when not global"       "installer_flags: --force"  env HOME="$TEMP/home" bash "$CMD" "show date"
 no_line  "installer_flags: no --global when not global"  "installer_flags: --force --global" env HOME="$TEMP/home" bash "$CMD" "show date"
-has_line "installer_flags: --force --global when global" "installer_flags: --force --global" env HOME="$TEMP/home" bash "$CMD" "--global show date"
+has_line "installer_flags: --force when global"          "installer_flags: --force"  env HOME="$TEMP/home" bash "$CMD" "--global show date"
+no_line  "installer_flags: no --global when global"      "installer_flags: --force --global" env HOME="$TEMP/home" bash "$CMD" "--global show date"
+has_line "project_path: empty when global"               "project_path: "            env HOME="$TEMP/home" bash "$CMD" "--global show date"
+has_line "checker_scope: --global when global"           "checker_scope: --global"   env HOME="$TEMP/home" bash "$CMD" "--global show date"
 
 # -----------------------------------------------------------------------
 printf '\nName vs description parsing:\n'
@@ -122,6 +125,12 @@ printf '\nScope detection:\n'
 has_line "global when no .claude dir"  "scope: global" env HOME="$TEMP/home" bash "$CMD" "show date"
 
 (cd "$TEMP/myproject" && has_line "project when .claude exists" "scope: project" env HOME="$TEMP/home" bash "$CMD" "show date")
+
+# project_path and checker_scope reflect scope
+has_line "project_path: empty when global scope"    "project_path: "     env HOME="$TEMP/home" bash "$CMD" "show date"
+has_line "checker_scope: --global when global scope" "checker_scope: --global" env HOME="$TEMP/home" bash "$CMD" "show date"
+(cd "$TEMP/myproject" && has_line "project_path: set to project dir"    "project_path: $TEMP/myproject"  env HOME="$TEMP/home" bash "$CMD" "show date")
+(cd "$TEMP/myproject" && has_line "checker_scope: set to project dir"   "checker_scope: $TEMP/myproject" env HOME="$TEMP/home" bash "$CMD" "show date")
 
 # -----------------------------------------------------------------------
 printf '\nInstaller detection:\n'
@@ -220,7 +229,7 @@ has_line  "conflict: none with --force"      "conflict: none"    env HOME="$TEMP
 no_line   "no WARNING with --force"          "WARNING"           env HOME="$TEMP/home" bash "$CMD" "--force conflicted do something"
 
 # --global alone does NOT skip conflict check — only --force does.
-# --global sets scope=global and adds --global to installer_flags, but conflict check still runs.
+# --global forces scope=global (project_path empty, checker_scope --global), but conflict check still runs.
 has_line  "conflict: blocked with --global alone"  "conflict: blocked" env HOME="$TEMP/home" bash "$CMD" "--global conflicted do something"
 has_line  "conflict: none with --force --global"   "conflict: none"    env HOME="$TEMP/home" bash "$CMD" "--force --global conflicted do something"
 
