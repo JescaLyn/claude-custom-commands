@@ -145,6 +145,16 @@ print(sid)
             SKILL_BLOCKS+=("A global custom command exists at $GLOBAL_COMMANDS_DIR/$NAME.sh. It will intercept typed /$NAME in all sessions.")
         fi
 
+        # Cross-scope: project-scope skill would shadow an existing global skill of the same name.
+        if [[ "$IS_GLOBAL" == "false" ]] && [[ -d "$GLOBAL_SKILLS_DIR/$NAME" ]]; then
+            SKILL_BLOCKS+=("Project-scope skill /$NAME will shadow global skill $GLOBAL_SKILLS_DIR/$NAME/.")
+        fi
+
+        # Cross-scope: global skill won't take effect in the currently open project.
+        if [[ "$IS_GLOBAL" == "true" ]] && [[ -n "$PROJECT_SKILLS_DIR" ]] && [[ -d "$PROJECT_SKILLS_DIR/$NAME" ]]; then
+            SKILL_BLOCKS+=("Global skill /$NAME won't take effect in this project — $PROJECT_SKILLS_DIR/$NAME/ already exists.")
+        fi
+
         # Built-in/bundled at same name: both appear in the slash menu — informational only.
         if [[ -f "$CONSTANTS_DIR/builtin-commands.txt" ]] && grep -qxF "$NAME" "$CONSTANTS_DIR/builtin-commands.txt" 2>/dev/null; then
             SKILL_NOTES+=("/$NAME is also a Claude Code built-in command — both will appear in the slash menu.")

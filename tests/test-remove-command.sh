@@ -7,6 +7,7 @@ set -euo pipefail
 CMD="$(cd "$(dirname "$0")/.." && pwd)/.claude/commands/remove-command.sh"
 TEMP_COMMANDS=$(mktemp -d)
 TEMP_CONSTANTS=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_CONSTANTS"' EXIT
 
 export CLAUDE_COMMANDS_DIR="$TEMP_COMMANDS"
 export CLAUDE_CONSTANTS_DIR="$TEMP_CONSTANTS"
@@ -49,6 +50,13 @@ check "no args shows usage and exits 0" 0 \
 
 check_output "usage shows command syntax" "Usage" \
     bash "$CMD"
+
+check "-h shows usage and exits 0" 0 \
+    bash "$CMD" -h
+check "--help shows usage and exits 0" 0 \
+    bash "$CMD" --help
+check_output "-h shows usage text" "Usage" \
+    bash "$CMD" -h
 
 # Command not installed
 check "fails when command not installed" 1 \
@@ -112,6 +120,7 @@ printf '\nProgressive lookup:\n'
 
 TEMP_HOME=$(mktemp -d)
 TEMP_PROJ_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_CONSTANTS" "$TEMP_HOME" "$TEMP_PROJ_DIR"' EXIT
 mkdir -p "$TEMP_HOME/.claude/commands" "$TEMP_PROJ_DIR/.claude/commands"
 
 # Global-only command: found via fallback when in a project session
@@ -179,6 +188,7 @@ rm -rf "$TEMP_HOME" "$TEMP_PROJ_DIR"
 # Tilde expansion in project path
 printf '\nTilde expansion:\n'
 TEMP_TILDE_HOME=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_CONSTANTS" "$TEMP_HOME" "$TEMP_PROJ_DIR" "$TEMP_TILDE_HOME"' EXIT
 mkdir -p "$TEMP_TILDE_HOME/myproject/.claude/commands"
 printf '#!/usr/bin/env bash\necho tilde\n' > "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-cmd.sh"
 chmod +x "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-cmd.sh"
@@ -197,6 +207,7 @@ rm -rf "$TEMP_TILDE_HOME"
 printf '\nCLAUDE_COMMANDS_DIR overrides project-path argument:\n'
 TEMP_OVERRIDE_CMDS=$(mktemp -d)
 TEMP_OVERRIDE_PROJ=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_CONSTANTS" "$TEMP_HOME" "$TEMP_PROJ_DIR" "$TEMP_TILDE_HOME" "$TEMP_OVERRIDE_CMDS" "$TEMP_OVERRIDE_PROJ"' EXIT
 mkdir -p "$TEMP_OVERRIDE_PROJ/.claude/commands"
 printf '#!/usr/bin/env bash\necho override\n' > "$TEMP_OVERRIDE_CMDS/override-test.sh"
 printf '#!/usr/bin/env bash\necho project\n' > "$TEMP_OVERRIDE_PROJ/.claude/commands/override-test.sh"

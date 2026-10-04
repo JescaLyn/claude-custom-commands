@@ -31,12 +31,17 @@ echo "${WRITER:-none}"
 
 Capture the printed path as `WRITER`. If `none`, stop and tell the user the script is not installed — they may need to re-run `/install-custom-commands`.
 
-Otherwise, run this (Bash call), substituting the actual names extracted in step 1 into the `printf` arguments:
+Otherwise, create two empty temp files (Bash call):
 ```bash
 BUILTINS_TMP=$(mktemp)
 SKILLS_TMP=$(mktemp)
-printf '%s\n' <builtin-name-1> <builtin-name-2> ... > "$BUILTINS_TMP"
-printf '%s\n' <skill-name-1> <skill-name-2> ...    > "$SKILLS_TMP"
+printf '%s\n%s\n' "$BUILTINS_TMP" "$SKILLS_TMP"
+```
+
+Capture the two printed paths. Using the **Write tool** (not a shell command), write the builtin command names extracted in step 1 to `$BUILTINS_TMP` — one name per line — and the bundled skill names to `$SKILLS_TMP`, same format. Writing the fetched names as plain file content, rather than interpolating them into a shell command, keeps text pulled from an external web page out of the shell entirely.
+
+Then run (Bash call), passing only the two file paths:
+```bash
 bash "$WRITER" "$BUILTINS_TMP" "$SKILLS_TMP"
 rm -f "$BUILTINS_TMP" "$SKILLS_TMP"
 ```

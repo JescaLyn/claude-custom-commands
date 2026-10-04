@@ -4,6 +4,17 @@
 
 set -euo pipefail
 
+usage() {
+    printf 'Usage: /create-command-from-script [--force] <name> <script-path> [project-path]\n\n'
+    printf '  --force           Create even if name conflicts with a built-in or existing command\n'
+    printf '  --name <name>     Flag alternative to positional <name>\n'
+    printf '  --script <path>   Flag alternative to positional <script-path>\n'
+    printf '  --project <path>  Flag alternative to positional [project-path]\n'
+    printf '  name              Name for the new command (becomes /<name>)\n'
+    printf '  script-path       Path to an existing bash script\n'
+    printf '  project-path      Optional; installs to <project>/.claude/commands/ instead of globally\n'
+}
+
 FORCE=false
 NAME=""
 SCRIPT_PATH=""
@@ -11,6 +22,7 @@ TARGET_PROJECT_DIR=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -h|--help) usage; exit 0 ;;
         --force)   FORCE=true; shift ;;
         --name)    NAME="$2"; shift 2 ;;
         --script)  SCRIPT_PATH="$2"; shift 2 ;;
@@ -27,14 +39,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$NAME" || -z "$SCRIPT_PATH" ]]; then
-    printf 'Usage: /create-command-from-script [--force] <name> <script-path> [project-path]\n\n'
-    printf '  --force           Create even if name conflicts with a built-in or existing command\n'
-    printf '  --name <name>     Flag alternative to positional <name>\n'
-    printf '  --script <path>   Flag alternative to positional <script-path>\n'
-    printf '  --project <path>  Flag alternative to positional [project-path]\n'
-    printf '  name              Name for the new command (becomes /<name>)\n'
-    printf '  script-path       Path to an existing bash script\n'
-    printf '  project-path      Optional; installs to <project>/.claude/commands/ instead of globally\n'
+    usage
     exit 0
 fi
 

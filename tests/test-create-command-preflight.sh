@@ -151,7 +151,7 @@ printf '\nInstaller detection:\n'
 has_line "installer: none when absent" "installer: none" env HOME="$TEMP/home" bash "$CMD" "show date"
 
 # Global installer
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 mkdir -p "$TEMP/home/.claude/commands"
 printf '#!/usr/bin/env bash\n' > "$TEMP/home/.claude/commands/create-command-from-script.sh"
 chmod +x "$TEMP/home/.claude/commands/create-command-from-script.sh"
@@ -179,7 +179,7 @@ chmod +x "$TEMP/home/.claude/commands/create-command-from-script.sh"
 printf '\nChecker detection:\n'
 # -----------------------------------------------------------------------
 
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 has_line "checker: none when absent" "checker: none" env HOME="$TEMP/home" bash "$CMD" "show date"
 
 # Global checker
@@ -202,7 +202,7 @@ chmod +x "$TEMP/myproject/.claude/hooks/check-slash-conflict.sh"
 printf '\nTmpfile:\n'
 # -----------------------------------------------------------------------
 
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 OUTPUT=$(env HOME="$TEMP/home" bash "$CMD" "show date" || true)
 TMPFILE=$(printf '%s' "$OUTPUT" | grep '^tmpfile:' | sed 's/^tmpfile: //')
 if [[ -f "$TMPFILE" ]]; then
@@ -221,7 +221,7 @@ MOCK_CHECKER="$TEMP/mock-checker.sh"
 printf '#!/usr/bin/env bash\ncase "${1:-}" in\n  conflicted) printf "WARNING: %%s is a test conflict\\n" "$1"; exit 1;;\n  *) exit 0;;\nesac\n' > "$MOCK_CHECKER"
 chmod +x "$MOCK_CHECKER"
 
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 mkdir -p "$TEMP/home/.claude/hooks"
 cp "$MOCK_CHECKER" "$TEMP/home/.claude/hooks/check-slash-conflict.sh"
 mkdir -p "$TEMP/home/.claude/commands"

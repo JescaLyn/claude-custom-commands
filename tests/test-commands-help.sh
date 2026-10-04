@@ -54,6 +54,7 @@ printf 'Running commands-help.sh tests...\n\n'
 # --- Global only, no commands ---
 printf 'Global only, empty:\n'
 TEMP_HOME=$(mktemp -d)
+trap 'rm -rf "$TEMP_HOME"' EXIT
 mkdir -p "$TEMP_HOME/.claude/commands"
 
 check "exits 0 with no commands" 0 env HOME="$TEMP_HOME" bash "$CMD"
@@ -118,6 +119,7 @@ rm -rf "$TEMP_HOME"
 printf '\nProject and global, both present:\n'
 TEMP_HOME=$(mktemp -d)
 TEMP_PROJECT=$(mktemp -d)
+trap 'rm -rf "$TEMP_HOME" "$TEMP_PROJECT"' EXIT
 mkdir -p "$TEMP_HOME/.claude/commands" "$TEMP_PROJECT/.claude/commands"
 printf '#!/usr/bin/env bash\n# description: Global one\necho hi\n' > "$TEMP_HOME/.claude/commands/global-cmd.sh"
 printf '#!/usr/bin/env bash\n# description: Project one\necho hi\n' > "$TEMP_PROJECT/.claude/commands/project-cmd.sh"

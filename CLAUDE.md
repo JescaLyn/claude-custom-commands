@@ -36,10 +36,19 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     refresh-slash-names/write-slash-names.sh  helper script; writes, normalizes, and confirms constants files
 
 install.sh                                 thin wrapper; delegates to install-custom-commands.sh
-uninstall.sh                               thin wrapper; delegates to uninstall-custom-commands.sh
+uninstall.sh                                thin wrapper; delegates to uninstall-custom-commands.sh
+VERSION                                     current version string (semver); no git tag cut yet
+.shellcheckrc                               disables SC2016 and SC2015 (both intentional in this repo; see Key Decisions)
+CONTRIBUTING.md                             PR workflow, testing/shellcheck requirements, naming conventions
+CODE_OF_CONDUCT.md                          Contributor Covenant 2.1
+SECURITY.md                                 private vulnerability reporting via GitHub Security tab
 
-tests/run-all.sh                           runs all suites below in order; local dev entry point (see DEVELOPMENT.md) — not yet wired into CI (see Known Gaps)
+.github/workflows/test.yml                  CI: runs tests/run-all.sh and a separate shellcheck job
+
+tests/run-all.sh                           runs all suites below in order; this is what CI invokes
+tests/run-repeated.sh                      runs run-all.sh N times (default 3) to catch flaky/non-deterministic failures
 tests/sample-hello.sh                      fixture script used by test-integration.sh (and manually, per DEVELOPMENT.md)
+tests/test-shellcheck.sh                   runs shellcheck across the repo the same way CI does
 tests/test-dispatch.sh
 tests/test-check-slash-conflict.sh
 tests/test-create-command-from-script.sh
@@ -71,7 +80,11 @@ tests/test-integration.sh
 
 **Explicit scope variable naming**: All scripts use `PROJECT_*`, `GLOBAL_*`, and `RESOLVED_*` prefixes (e.g. `PROJECT_COMMANDS_DIR`, `GLOBAL_COMMANDS_DIR`, `RESOLVED_COMMANDS_DIR`) rather than a single collapsed variable. The explicit naming makes the active scope visible at every decision point and eliminates the ambiguity that comes with a single `COMMANDS_DIR` that conflated scope determination with lookup result.
 
-**`check-slash-conflict.sh` cross-scope awareness**: The conflict checker validates both same-scope and cross-scope conflicts. A project-scope install is blocked if a same-name entry already exists globally (the project entry would shadow it). A global install is blocked if a same-name entry already exists in the currently open project (the global entry would be unreachable there). This prevents silent dispatch mismatches where a command appears to install successfully but is never reachable because another entry intercepts the name first.
+**`check-slash-conflict.sh` cross-scope awareness**: The conflict checker validates both same-scope and cross-scope conflicts, for both commands and skills. A project-scope write is blocked if a same-name entry already exists globally (the project entry would shadow it). A global write is blocked if a same-name entry already exists in the currently open project (the global entry would be unreachable there). This prevents silent dispatch mismatches where a command or skill appears to install successfully but is never reachable because another entry intercepts the name first.
+
+**Install fails loud on corrupt `settings.json`; uninstall skips quietly**: If `settings.json` exists but isn't valid JSON, `install-custom-commands.sh` / `install-custom-commands-minimal.sh` print an error and exit 1 without touching the file — install has a hook to register and can't safely proceed without a parseable file to merge into. `uninstall-custom-commands.sh` instead prints `NO_CHANGE` and leaves the file alone, because uninstall has nothing it needs to write; there's no reason to fail a removal over a settings file it doesn't need to touch. Neither path silently resets the file to `{}` and overwrites, which would discard unrelated configuration.
+
+**Shellcheck disables specific codes, not a severity threshold**: `.shellcheckrc` has no `severity=` directive — that's a CLI-only flag (`-S`), confirmed by testing against shellcheck 0.11.0. The repo instead disables SC2016 and SC2015 by code: SC2016 fires on every intentionally-unexpanded single-quoted literal like `'${CLAUDE_PROJECT_DIR}/...'`, and SC2015 fires on the `[[ cond ]] && { } || { }` idiom used throughout `tests/` where both branches are plain literal blocks. Both are real patterns in this repo, not mistakes, so they're disabled by code rather than filtered by a severity cutoff that doesn't exist. CI calls plain `shellcheck` with no flags; `.shellcheckrc` auto-discovery applies the same disables there as locally.
 
 **Global-first constants lookup**: `check-slash-conflict.sh` always reads `~/.claude/constants/`, falling back to project-local constants only if the global directory does not exist. Built-in command names and bundled skill names are facts about Claude Code itself — one global update benefits all sessions. Project installs still copy constants locally so the hook works even without a global install.
 
@@ -82,6 +95,8 @@ tests/test-integration.sh
 **Global uninstall requires no repo dir**: `uninstall-custom-commands.sh` hardcodes all paths it removes (hooks, skill names, hook entry). Project uninstall hardcodes the list of command names this repo manages. Neither mode needs the repo to be present.
 
 **Scripts receive args via unquoted `$ARGS`**: Intentional word-splitting works for flag-style args. Commands that need structured arg parsing receive the raw args string in `$1`.
+
+**`run-all.sh` checks for leaked temp dirs; `run-repeated.sh` checks for flakiness; neither is a "suite"**: Several real bugs in this test suite (a forgotten `mktemp -d` in an `EXIT` trap, a SIGPIPE race in a piped `grep -q`) left no failing assertion behind — the leak just sits in `/tmp`, and the race only shows up some fraction of runs. `run-all.sh` snapshots `$TMPDIR` before and after all suites and fails if anything new persists. `run-repeated.sh` reruns `run-all.sh` itself N times (default 3) and fails if any run's result differs. Neither lives in `run-all.sh`'s own suite list — the leak check wraps the whole run, and `run-repeated.sh` wraps `run-all.sh`, so including it in `run-all.sh` would recurse.
 
 ## Hook Output Rendering
 
@@ -95,13 +110,4 @@ tests/test-integration.sh
 
 ## Known Gaps / Follow-Up
 
-Not blockers for release, but not yet done. Worth picking up when touching the relevant area:
-
-- **CI doesn't run all suites**: `.github/workflows/test.yml` inlines only 7 of the 11 suites in `tests/run-all.sh` — missing `test-commands-help.sh`, `test-install-custom-commands-minimal.sh`, `test-write-slash-names.sh`, and `test-create-command-preflight.sh`. Point it at `tests/run-all.sh` instead of listing suites individually, so new suites are covered automatically.
-- **No CONTRIBUTING.md / CODE_OF_CONDUCT.md / SECURITY.md.** `DEVELOPMENT.md` covers running tests only, not the contribution process.
-- **No versioning**: no `VERSION` file, no version field, no git tags.
-- **No enforced shellcheck**: one inline `# shellcheck disable=SC2086` suppression exists (`dispatch-commands.sh`), proving it's been run manually at least once, but there's no CI step or `.shellcheckrc`.
-- **No `-h`/`--help` flag support**: user-facing scripts print usage on missing/bad args, but none recognize `-h`/`--help` explicitly — a bare `-h` gets parsed as a positional name/path and produces a confusing "Invalid name: -h" style error instead of usage text.
-- **Install doesn't handle pre-existing corrupt `settings.json` as safely as uninstall does**: if `settings.json` exists but is invalid JSON, `install-custom-commands.sh` / `install-custom-commands-minimal.sh` silently reset it to `{}` and overwrite, discarding whatever was in there. `uninstall-custom-commands.sh`'s equivalent (`NO_CHANGE`) leaves the file untouched instead — install should match that behavior.
-- **`check-slash-conflict.sh` skill writes don't get cross-scope shadow checking**: command writes are checked against the other scope (a project command shadowing a global one, or vice versa); skill writes only check for an intercepting custom command and give an informational note for built-in/bundled name collisions — a project-scope skill silently shadowing a global skill of the same name isn't flagged. Documented as current behavior in the README; extending the cross-scope check to skills would close the gap.
-- **`refresh-slash-names/SKILL.md` builds a shell command from fetched doc content**: it substitutes command/skill names extracted from a `WebFetch` of Claude Code's docs directly into a `printf ... > file` command in the prompt, with no sanitization step between extraction and execution. Low risk (requires compromised docs plus model complicity), but it also cuts against this repo's own scripts-over-inference convention — the substitution belongs in `write-slash-names.sh` (reading names from stdin/a file) rather than in the skill prompt.
+- **No git tag for the current `VERSION`.** `VERSION` holds `0.1.0`, but no `v0.1.0` tag has been pushed yet — that's a release action for whoever publishes the first cut, not something to script.

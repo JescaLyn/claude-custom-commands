@@ -10,6 +10,13 @@
 
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    printf 'Usage: /install-custom-commands-minimal [project-path]\n\n'
+    printf '  project-path  Optional; installs into <project>/.claude/ instead of globally\n'
+    printf '                Omit to install to ~/.claude/.\n'
+    exit 0
+fi
+
 # CLAUDE_PROJECT_DIR is set by Claude Code in hook subprocesses (cwd is $HOME, not the project).
 # Fall back to $PWD for direct invocation from the repo root.
 CUSTOM_COMMANDS_REPO_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -68,8 +75,9 @@ import json, sys, os
 settings_path, hook_cmd = sys.argv[1], sys.argv[2]
 try:
     s = json.loads(open(settings_path).read()) if os.path.exists(settings_path) else {}
-except ValueError:
-    s = {}
+except ValueError as e:
+    print("INVALID_JSON:" + str(e))
+    sys.exit(0)
 home = os.environ.get("HOME", "")
 def norm(cmd):
     return cmd.replace("$HOME", home) if home else cmd
@@ -83,7 +91,11 @@ ups.append({"hooks": [{"type": "command", "command": hook_cmd}]})
 print(json.dumps(s, indent=2))
 PYEOF
 )
-if [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
+if [[ "$UPDATED" == INVALID_JSON:* ]]; then
+    printf '  Error: %s is not valid JSON (%s) -- not modified. Fix or remove it, then re-run.\n' \
+        "$RESOLVED_SETTINGS" "${UPDATED#INVALID_JSON:}" >&2
+    exit 1
+elif [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
     printf '  Hook already registered in %s\n' "$RESOLVED_SETTINGS"
 else
     printf '%s\n' "$UPDATED" > "$RESOLVED_SETTINGS"

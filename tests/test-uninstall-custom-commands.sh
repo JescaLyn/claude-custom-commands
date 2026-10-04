@@ -43,6 +43,17 @@ strip_python3_from_path() {
 
 printf 'Running uninstall-custom-commands.sh tests...\n\n'
 
+# --- Help ---
+printf 'Help:\n'
+check "-h shows usage and exits 0" 0 bash "$CMD" -h
+check "--help shows usage and exits 0" 0 bash "$CMD" --help
+HELP_OUTPUT=$(bash "$CMD" -h)
+printf '%s' "$HELP_OUTPUT" | grep -q 'Usage' && {
+    printf '  PASS  -h shows usage text\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  -h did not show usage text\n'; (( fail++ )) || true
+}
+
 # --- Missing python3 ---
 printf 'Missing python3:\n'
 NO_PYTHON3_PATH=$(strip_python3_from_path)

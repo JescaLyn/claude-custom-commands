@@ -1,0 +1,7 @@
+# SC2016: many hook-command strings are intentionally single-quoted so
+# ${CLAUDE_PROJECT_DIR} and $HOME stay literal for Claude Code to resolve at
+# runtime (see CLAUDE.md's Architecture section) -- not a bug.
+# SC2015: the `[[ cond ]] && { ... } || { ... }` pass/fail idiom used
+# throughout tests/ always has literal { } block bodies with no further
+# branching inside them, so the "C may run when A is true" caveat doesn't apply.
+disable=SC2016,SC2015

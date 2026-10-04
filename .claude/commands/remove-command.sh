@@ -17,7 +17,7 @@ else
     CONSTANTS_DIR="$HOME/.claude/constants"
 fi
 
-if [[ $# -eq 0 ]]; then
+if [[ $# -eq 0 || "$1" == "-h" || "$1" == "--help" ]]; then
     printf 'Usage: /remove-command <name> [project-path]\n\n'
     printf '  name          Name of the custom command to remove (without leading slash)\n'
     printf '  project-path  Optional; restricts removal to <project>/.claude/commands/\n'

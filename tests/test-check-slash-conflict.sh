@@ -9,6 +9,7 @@ CHECK="$REPO/.claude/hooks/check-slash-conflict.sh"
 TEMP_COMMANDS=$(mktemp -d)
 TEMP_SKILLS=$(mktemp -d)
 TEMP_CONSTANTS=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS"' EXIT
 
 cp "$REPO/.claude/constants/builtin-commands.txt" "$TEMP_CONSTANTS/builtin-commands.txt"
 cp "$REPO/.claude/constants/bundled-skills.txt" "$TEMP_CONSTANTS/bundled-skills.txt"
@@ -131,6 +132,7 @@ check_output "warns about existing command" "WARNING" \
 
 # Missing (not just empty) constants files — grep/[[ -f ]] guards should no-op, not error
 TEMP_NO_CONSTANTS=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_NO_CONSTANTS"' EXIT
 rm -rf "$TEMP_NO_CONSTANTS"
 check "exits 0 for clean name when constants dir doesn't exist" 0 \
     bash -c "CLAUDE_CONSTANTS_DIR='$TEMP_NO_CONSTANTS' bash '$CHECK' some-clean-name"
@@ -140,6 +142,7 @@ printf '\nDirect mode scope args:\n'
 
 TEMP_SCOPE_HOME=$(mktemp -d)
 TEMP_SCOPE_PROJ=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_NO_CONSTANTS" "$TEMP_SCOPE_HOME" "$TEMP_SCOPE_PROJ"' EXIT
 mkdir -p "$TEMP_SCOPE_HOME/.claude/commands" "$TEMP_SCOPE_PROJ/.claude/commands"
 
 # --global: clean name exits 0
@@ -201,6 +204,7 @@ printf '\nDirect mode: CLAUDE_COMMANDS_DIR scope inference:\n'
 # and applies the cross-scope "won't take effect in project" check accordingly.
 TEMP_INFER_HOME=$(mktemp -d)
 TEMP_INFER_PROJ=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_NO_CONSTANTS" "$TEMP_SCOPE_HOME" "$TEMP_SCOPE_PROJ" "$TEMP_INFER_HOME" "$TEMP_INFER_PROJ"' EXIT
 mkdir -p "$TEMP_INFER_HOME/.claude/commands" "$TEMP_INFER_PROJ/.claude/commands"
 touch "$TEMP_INFER_PROJ/.claude/commands/infer-global.sh"
 check "exits 1 when CLAUDE_COMMANDS_DIR under \$HOME/.claude infers global scope" 1 \
@@ -214,6 +218,7 @@ printf '\nCONSTANTS_DIR fallback chain:\n'
 
 # With no CLAUDE_CONSTANTS_DIR override, the checker falls back to $HOME/.claude/constants.
 TEMP_FALLBACK_HOME=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_NO_CONSTANTS" "$TEMP_SCOPE_HOME" "$TEMP_SCOPE_PROJ" "$TEMP_INFER_HOME" "$TEMP_INFER_PROJ" "$TEMP_FALLBACK_HOME"' EXIT
 mkdir -p "$TEMP_FALLBACK_HOME/.claude/constants"
 printf 'fallback-builtin\n' > "$TEMP_FALLBACK_HOME/.claude/constants/builtin-commands.txt"
 printf '' > "$TEMP_FALLBACK_HOME/.claude/constants/bundled-skills.txt"
@@ -225,7 +230,7 @@ rm -rf "$TEMP_FALLBACK_HOME"
 printf '\nHook mode:\n'
 
 TEMP_HOME=$(mktemp -d)
-trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_HOME"' EXIT
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_NO_CONSTANTS" "$TEMP_SCOPE_HOME" "$TEMP_SCOPE_PROJ" "$TEMP_INFER_HOME" "$TEMP_INFER_PROJ" "$TEMP_FALLBACK_HOME" "$TEMP_HOME"' EXIT
 # Hook mode derives paths from HOME; unset scope overrides so there's no bleed from direct mode tests
 unset CLAUDE_COMMANDS_DIR CLAUDE_SKILLS_DIR CLAUDE_CONSTANTS_DIR
 
@@ -339,6 +344,7 @@ printf '\nHook mode cross-scope:\n'
 
 TEMP_CROSS_HOME=$(mktemp -d)
 TEMP_CROSS_PROJ=$(mktemp -d)
+trap 'rm -rf "$TEMP_COMMANDS" "$TEMP_SKILLS" "$TEMP_CONSTANTS" "$TEMP_NO_CONSTANTS" "$TEMP_SCOPE_HOME" "$TEMP_SCOPE_PROJ" "$TEMP_INFER_HOME" "$TEMP_INFER_PROJ" "$TEMP_FALLBACK_HOME" "$TEMP_HOME" "$TEMP_CROSS_HOME" "$TEMP_CROSS_PROJ"' EXIT
 mkdir -p "$TEMP_CROSS_HOME/.claude/commands" "$TEMP_CROSS_PROJ/.claude/commands"
 
 # Project-scope write (FILE_PATH not under $HOME/.claude/) — global command exists → block (exit 2)
@@ -380,6 +386,22 @@ check "hook: project skill write blocked when global command exists exits 2" 2 \
 
 check_output "hook: project skill write global command warning mentions global" "global custom command" \
     bash -c "printf '%s' '$(write_json Write "$TEMP_CROSS_PROJ/.claude/skills/skill-cmd-x/SKILL.md")' | HOME='$TEMP_CROSS_HOME' CLAUDE_PROJECT_DIR='$TEMP_CROSS_PROJ' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Project-scope SKILL write shadowing an existing global SKILL of the same name → block (exit 2)
+mkdir -p "$TEMP_CROSS_HOME/.claude/skills/skill-shadow-x"
+check "hook: project skill write shadowing global skill exits 2" 2 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_CROSS_PROJ/.claude/skills/skill-shadow-x/SKILL.md")' | HOME='$TEMP_CROSS_HOME' CLAUDE_PROJECT_DIR='$TEMP_CROSS_PROJ' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+check_output "hook: project skill shadow global skill warning mentions shadow" "shadow" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_CROSS_PROJ/.claude/skills/skill-shadow-x/SKILL.md")' | HOME='$TEMP_CROSS_HOME' CLAUDE_PROJECT_DIR='$TEMP_CROSS_PROJ' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Global SKILL write that won't take effect because the open project already has a skill of the same name → block (exit 2)
+mkdir -p "$TEMP_CROSS_PROJ/.claude/skills/skill-wont-effect-x"
+check "hook: global skill write won't take effect because project has skill exits 2" 2 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_CROSS_HOME/.claude/skills/skill-wont-effect-x/SKILL.md")' | HOME='$TEMP_CROSS_HOME' CLAUDE_PROJECT_DIR='$TEMP_CROSS_PROJ' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+check_output "hook: global skill won't-take-effect warning in output" "won.t take effect" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_CROSS_HOME/.claude/skills/skill-wont-effect-x/SKILL.md")' | HOME='$TEMP_CROSS_HOME' CLAUDE_PROJECT_DIR='$TEMP_CROSS_PROJ' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
 
 rm -rf "$TEMP_CROSS_HOME" "$TEMP_CROSS_PROJ"
 

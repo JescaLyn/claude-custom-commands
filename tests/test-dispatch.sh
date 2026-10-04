@@ -6,6 +6,7 @@ set -euo pipefail
 
 DISPATCH="$(cd "$(dirname "$0")/.." && pwd)/.claude/hooks/dispatch-commands.sh"
 TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
 export CLAUDE_COMMANDS_DIR="$TEMP_DIR"
 
 pass=0; fail=0
@@ -142,6 +143,7 @@ check "passes through /clear when no clear.sh exists" 0 \
 # the hook should fall back to ~/.claude/commands/ rather than passing through.
 TEMP_PROJECT=$(mktemp -d)
 TEMP_HOME=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR" "$TEMP_PROJECT" "$TEMP_HOME"' EXIT
 mkdir -p "$TEMP_HOME/.claude/commands"
 cat > "$TEMP_HOME/.claude/commands/global-only.sh" << 'EOF'
 #!/usr/bin/env bash

@@ -102,5 +102,28 @@ else
     printf '  PASS  dispatch passes through /int-hello after removal\n'; (( pass++ )) || true
 fi
 
+# --- Dispatch (built-in commands, through the real dispatcher) ---
+# Regression coverage for the commands-help.sh exit-code bug: that bug only showed up
+# through the dispatcher (as "Command /commands-help failed"), never when calling the
+# script directly, so this exercises the actual path a user hits.
+printf '\nDispatch (built-in commands):\n'
+
+for builtin_cmd in ping now commands-help; do
+    RESULT=$(printf '{"prompt":"/%s"}' "$builtin_cmd" | \
+        CLAUDE_COMMANDS_DIR="$REPO/.claude/commands" bash "$DISPATCH" 2>&1)
+
+    if printf '%s' "$RESULT" | grep -qF '"block"'; then
+        printf '  PASS  /%s dispatches\n' "$builtin_cmd"; (( pass++ )) || true
+    else
+        printf '  FAIL  /%s did not dispatch: %s\n' "$builtin_cmd" "$RESULT"; (( fail++ )) || true
+    fi
+
+    if printf '%s' "$RESULT" | grep -qi 'failed'; then
+        printf '  FAIL  /%s reported as failed by the dispatcher: %s\n' "$builtin_cmd" "$RESULT"; (( fail++ )) || true
+    else
+        printf '  PASS  /%s not reported as failed\n' "$builtin_cmd"; (( pass++ )) || true
+    fi
+done
+
 printf '\nResults: %d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

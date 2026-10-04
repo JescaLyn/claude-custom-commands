@@ -57,7 +57,7 @@ fi
 
 # --- Global write ---
 printf '\nGlobal write:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 printf 'clear\nhelp\nmodel\n' > "$TEMP/builtins.txt"
 printf 'review\ninit\n'        > "$TEMP/skills.txt"
 check "exits 0 for basic write" 0 env HOME="$TEMP/home" bash "$CMD" "$TEMP/builtins.txt" "$TEMP/skills.txt"
@@ -96,7 +96,7 @@ fi
 
 # --- Normalization: leading slashes ---
 printf '\nNormalization — leading slashes:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 printf '/clear\n/help\n/model\n' > "$TEMP/builtins.txt"
 printf '/review\n/init\n'        > "$TEMP/skills.txt"
 env HOME="$TEMP/home" bash "$CMD" "$TEMP/builtins.txt" "$TEMP/skills.txt" > /dev/null
@@ -113,7 +113,7 @@ fi
 
 # --- Normalization: sorting ---
 printf '\nNormalization — sorting:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 printf 'zebra\napple\nmiddle\n' > "$TEMP/builtins.txt"
 printf 'zzz\naaa\nmmm\n'        > "$TEMP/skills.txt"
 env HOME="$TEMP/home" bash "$CMD" "$TEMP/builtins.txt" "$TEMP/skills.txt" > /dev/null
@@ -127,7 +127,7 @@ fi
 
 # --- Normalization: deduplication ---
 printf '\nNormalization — deduplication:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 printf 'clear\nclear\nhelp\nclear\n' > "$TEMP/builtins.txt"
 printf 'review\nreview\n'            > "$TEMP/skills.txt"
 env HOME="$TEMP/home" bash "$CMD" "$TEMP/builtins.txt" "$TEMP/skills.txt" > /dev/null
@@ -146,7 +146,7 @@ fi
 
 # --- Normalization: blank lines stripped ---
 printf '\nNormalization — blank lines:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 printf 'clear\n\nhelp\n\n\nmodel\n' > "$TEMP/builtins.txt"
 printf 'review\n\ninit\n'           > "$TEMP/skills.txt"
 env HOME="$TEMP/home" bash "$CMD" "$TEMP/builtins.txt" "$TEMP/skills.txt" > /dev/null
@@ -159,7 +159,7 @@ fi
 
 # --- Normalization: combined (slashes + unsorted + duplicates) ---
 printf '\nNormalization — combined:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 printf '/zebra\n/apple\n/zebra\n/middle\n' > "$TEMP/builtins.txt"
 printf '/zzz\n/aaa\n/aaa\n'               > "$TEMP/skills.txt"
 env HOME="$TEMP/home" bash "$CMD" "$TEMP/builtins.txt" "$TEMP/skills.txt" > /dev/null
@@ -173,7 +173,7 @@ fi
 
 # --- Empty input files ---
 printf '\nEmpty input files:\n'
-rm -rf "$TEMP/home"
+rm -rf "${TEMP:?}/home"
 : > "$TEMP/empty.txt"
 env HOME="$TEMP/home" bash "$CMD" "$TEMP/empty.txt" "$TEMP/empty.txt" > /dev/null
 [[ -f "$TEMP/home/.claude/constants/builtin-commands.txt" ]] && {
@@ -194,7 +194,7 @@ fi
 
 # --- Project-local write ---
 printf '\nProject-local write:\n'
-rm -rf "$TEMP/home" "$TEMP/project"
+rm -rf "${TEMP:?}/home" "${TEMP:?}/project"
 mkdir -p "$TEMP/project/.claude/constants"
 printf 'clear\nhelp\n' > "$TEMP/builtins.txt"
 printf 'review\n'       > "$TEMP/skills.txt"
@@ -228,7 +228,7 @@ fi
 
 # --- No project-local write when .claude/constants absent ---
 printf '\nNo project-local write when .claude/constants absent:\n'
-rm -rf "$TEMP/home" "$TEMP/project2"
+rm -rf "${TEMP:?}/home" "${TEMP:?}/project2"
 mkdir -p "$TEMP/project2/.claude"
 printf 'clear\n'  > "$TEMP/builtins.txt"
 printf 'review\n' > "$TEMP/skills.txt"

@@ -6,11 +6,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
-        run: |
-          bash tests/test-dispatch.sh
-          bash tests/test-check-slash-conflict.sh
-          bash tests/test-create-command-from-script.sh
-          bash tests/test-remove-command.sh
-          bash tests/test-install-custom-commands.sh
-          bash tests/test-uninstall-custom-commands.sh
-          bash tests/test-integration.sh
+        run: bash tests/run-all.sh
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: find . -name '*.sh' -not -path './.git/*' -print0 | xargs -0 shellcheck

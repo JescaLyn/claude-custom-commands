@@ -7,6 +7,7 @@ set -euo pipefail
 CMD="$(cd "$(dirname "$0")/.." && pwd)/.claude/commands/create-command-from-script.sh"
 TEMP_DIR=$(mktemp -d)
 TEMP_COMMANDS=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR" "$TEMP_COMMANDS"' EXIT
 
 export CLAUDE_COMMANDS_DIR="$TEMP_COMMANDS"
 
@@ -57,6 +58,13 @@ check_output "usage mentions --force flag" "force" \
 
 check_output "usage mentions project-path option" "project" \
     bash "$CMD"
+
+check "-h shows usage and exits 0" 0 \
+    bash "$CMD" -h
+check "--help shows usage and exits 0" 0 \
+    bash "$CMD" --help
+check_output "-h shows usage text" "Usage" \
+    bash "$CMD" -h
 
 # Invalid name
 check "rejects name starting with digit" 1 \
@@ -146,6 +154,7 @@ check "--force creates command despite conflict" 0 \
 printf '\nScope:\n'
 TEMP_HOME_SCOPE=$(mktemp -d)
 PROJ_DIR_SCOPE=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR" "$TEMP_COMMANDS" "$TEMP_HOME_SCOPE" "$PROJ_DIR_SCOPE"' EXIT
 mkdir -p "$PROJ_DIR_SCOPE/.claude"
 SCOPE_SCRIPT=$(mktemp "$TEMP_DIR/scope-XXXX.sh")
 printf '#!/usr/bin/env bash\necho "scope test"\n' > "$SCOPE_SCRIPT"
@@ -220,6 +229,7 @@ check_output "too many positional arguments explains the error" "Unexpected argu
 # Tilde expansion in project path
 printf '\nTilde expansion:\n'
 TEMP_TILDE_HOME=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR" "$TEMP_COMMANDS" "$TEMP_HOME_SCOPE" "$PROJ_DIR_SCOPE" "$TEMP_TILDE_HOME"' EXIT
 mkdir -p "$TEMP_TILDE_HOME/myproject/.claude"
 
 check "tilde-prefixed project path installs correctly" 0 \

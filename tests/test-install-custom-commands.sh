@@ -44,6 +44,19 @@ strip_python3_from_path() {
 
 printf 'Running install-custom-commands.sh tests...\n\n'
 
+# --- Help ---
+printf 'Help:\n'
+cd /tmp
+check "-h shows usage and exits 0 from any directory" 0 bash "$CMD" -h
+check "--help shows usage and exits 0 from any directory" 0 bash "$CMD" --help
+HELP_OUTPUT=$(bash "$CMD" -h)
+printf '%s' "$HELP_OUTPUT" | grep -q 'Usage' && {
+    printf '  PASS  -h shows usage text\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  -h did not show usage text\n'; (( fail++ )) || true
+}
+cd "$ORIG_DIR"
+
 # --- Missing python3 ---
 printf 'Missing python3:\n'
 cd "$REPO"
@@ -270,11 +283,36 @@ check "exits 0 for project install" 0 env HOME="$TEMP_HOME2" bash "$CMD" "$TEMP_
 }
 cd "$ORIG_DIR"
 
+# --- Corrupt settings.json ---
+printf '\nCorrupt settings.json:\n'
+cd "$REPO"
+TEMP_HOME_CORRUPT=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_HOME" "$TEMP_PROJECT" "$TEMP_HOME2" "$TEMP_HOME_NOPY" "$TEMP_HOME_CORRUPT"' EXIT
+mkdir -p "$TEMP_HOME_CORRUPT/.claude"
+printf '{not valid json' > "$TEMP_HOME_CORRUPT/.claude/settings.json"
+
+check "exits 1 when settings.json is corrupt" 1 env HOME="$TEMP_HOME_CORRUPT" bash "$CMD"
+
+STDERR=$(env HOME="$TEMP_HOME_CORRUPT" bash "$CMD" 2>&1 1>/dev/null || true)
+if printf '%s' "$STDERR" | grep -q 'not valid JSON'; then
+    printf '  PASS  clear not-valid-JSON error on stderr\n'; (( pass++ )) || true
+else
+    printf '  FAIL  expected stderr about invalid JSON, got: %s\n' "$STDERR"; (( fail++ )) || true
+fi
+
+CORRUPT_AFTER=$(cat "$TEMP_HOME_CORRUPT/.claude/settings.json" 2>/dev/null || true)
+if [[ "$CORRUPT_AFTER" == "{not valid json" ]]; then
+    printf '  PASS  corrupt settings.json left untouched, not overwritten\n'; (( pass++ )) || true
+else
+    printf '  FAIL  corrupt settings.json was modified: %s\n' "$CORRUPT_AFTER"; (( fail++ )) || true
+fi
+cd "$ORIG_DIR"
+
 # --- Root wrapper (install.sh) delegates to install-custom-commands.sh ---
 printf '\nRoot wrapper (install.sh):\n'
 TEMP_HOME_WRAPPER=$(mktemp -d)
 TEMP_PROJECT_WRAPPER=$(mktemp -d)
-trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_HOME" "$TEMP_PROJECT" "$TEMP_HOME2" "$TEMP_HOME_NOPY" "$TEMP_HOME_WRAPPER" "$TEMP_PROJECT_WRAPPER"' EXIT
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_HOME" "$TEMP_PROJECT" "$TEMP_HOME2" "$TEMP_HOME_NOPY" "$TEMP_HOME_CORRUPT" "$TEMP_HOME_WRAPPER" "$TEMP_PROJECT_WRAPPER"' EXIT
 cd "$REPO"
 check "install.sh exits 0 for project install (args pass through)" 0 \
     env HOME="$TEMP_HOME_WRAPPER" bash "$WRAPPER" "$TEMP_PROJECT_WRAPPER"

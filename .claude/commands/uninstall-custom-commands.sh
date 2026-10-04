@@ -7,6 +7,13 @@
 
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    printf 'Usage: /uninstall-custom-commands [project-path]\n\n'
+    printf '  project-path  Optional; removes from <project>/.claude/ instead of globally\n'
+    printf '                Omit to uninstall from ~/.claude/.\n'
+    exit 0
+fi
+
 if ! command -v python3 &>/dev/null; then
     printf 'Error: python3 is required but not found.\n' >&2
     exit 1
