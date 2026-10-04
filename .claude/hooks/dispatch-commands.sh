@@ -67,7 +67,7 @@ python3 -c "
 import json, sys
 label, output = sys.argv[1], sys.argv[2].rstrip('\n')
 lines = output.split('\n')
-prefix = '╭─ /'
+prefix = '╭─ Running command /'
 W = max(len(prefix) + len(label) + 3, max((len(l) for l in lines), default=0) + 3, 40)
 header = prefix + label + ' ' + '─' * (W - len(prefix) - len(label) - 1)
 body   = '│\n' + '\n'.join('│ ' + l for l in lines)

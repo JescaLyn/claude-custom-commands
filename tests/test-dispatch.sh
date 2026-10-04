@@ -110,6 +110,9 @@ check_output "block decision value is block" '"block"' \
 check_output "command output appears in reason" 'pong' \
     bash -c "printf '{\"prompt\":\"/ping\"}' | bash '$DISPATCH'"
 
+check_output "reason header names the command being run" 'Running command /ping' \
+    bash -c "printf '{\"prompt\":\"/ping\"}' | bash '$DISPATCH'"
+
 # Command with arguments
 cat > "$TEMP_DIR/echo-args.sh" << 'EOF'
 #!/usr/bin/env bash

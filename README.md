@@ -115,7 +115,7 @@ Every command output is preceded by a header line that Claude Code injects:
 ```
 UserPromptSubmit operation blocked by hook:
 
-╭─ /ping ────────────────────────────────────
+╭─ Running command /ping ────────────────────
 │
 │ pong — custom command dispatcher is active
 ╰────────────────────────────────────────────
