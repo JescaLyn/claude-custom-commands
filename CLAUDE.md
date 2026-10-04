@@ -14,13 +14,14 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
 
 ```
 .claude/                                   mirrors ~/.claude/; install.sh copies these into place
+  settings.json                      registers the dispatcher for sessions opened in this repo (not copied by install.sh)
   hooks/
     dispatch-commands.sh             UserPromptSubmit hook; runs scripts, returns JSON {decision:block}
     check-slash-conflict.sh          PreToolUse:Write hook; name conflict checker (same-scope and cross-scope); approval-file override
   constants/
     builtin-commands.txt             built-in command names; read by conflict checker; updated by /refresh-slash-names
     bundled-skills.txt               bundled skill names; read by conflict checker; updated by /refresh-slash-names
-  commands/
+  commands/                          each <name>.sh has a sibling <name>.md autocomplete stub (slash-menu display only)
     ping.sh                          /ping — smoke test
     now.sh                           /now — show current date and time
     commands-help.sh                 /commands-help — list registered commands
@@ -37,9 +38,11 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
 
 install.sh                                 thin wrapper; delegates to install-custom-commands.sh
 uninstall.sh                                thin wrapper; delegates to uninstall-custom-commands.sh
-VERSION                                     current version string (semver); no git tag cut yet
+VERSION                                     current version string (semver); tag each release as v<VERSION>
 .shellcheckrc                               disables SC2016 and SC2015 (both intentional in this repo; see Key Decisions)
+DEVELOPMENT.md                              running tests, single suites, manual testing
 CONTRIBUTING.md                             PR workflow, testing/shellcheck requirements, naming conventions
+LICENSE                                     MIT
 CODE_OF_CONDUCT.md                          Contributor Covenant 2.1
 SECURITY.md                                 private vulnerability reporting via GitHub Security tab
 
@@ -106,8 +109,10 @@ tests/test-integration.sh
 
 **The banner is hardcoded**: `UserPromptSubmit operation blocked by hook: [command]: <reason>` cannot be suppressed. There is no documented or undocumented field that removes the header line or the `[command]:` identifier prefix. The minimum visible output is one banner line plus the reason content.
 
+**The reason is box-framed**: The dispatcher wraps script output in a box whose header reads `╭─ Running command /<name> [args] ───`. Width is `max(header + 3, longest output line + 3, 40)`; the README's `/ping` example reflects the real rendered width, so update it if the formula or header text changes. `test-dispatch.sh` asserts the header text.
+
 **`/commands-help` instead of `/help`**: Avoided `/help` to prevent shadowing Claude Code's built-in. The command is named `/commands-help` to be unambiguous.
 
-## Known Gaps / Follow-Up
+## Releasing
 
-- **No git tag for the current `VERSION`.** `VERSION` holds `0.1.0`, but no `v0.1.0` tag has been pushed yet — that's a release action for whoever publishes the first cut, not something to script.
+Bump `VERSION`, commit, wait for CI to pass, then `git tag -a v<VERSION> -m v<VERSION> && git push origin v<VERSION>`. `v0.1.0` is the first tag.
