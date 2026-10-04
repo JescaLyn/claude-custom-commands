@@ -38,6 +38,21 @@ check_output() {
     fi
 }
 
+# Builds a PATH with every directory that contains a python3 executable stripped out,
+# to simulate "python3 not installed" without touching the real PATH. Resolve bash's own
+# absolute path first so the stripped PATH can never accidentally break bash's own lookup
+# (e.g. if bash and python3 happened to live in the same directory on some machine).
+BASH_BIN=$(command -v bash)
+strip_python3_from_path() {
+    local dir result=""
+    IFS=':' read -ra dirs <<< "$PATH"
+    for dir in "${dirs[@]}"; do
+        [[ -x "$dir/python3" ]] && continue
+        result="${result:+$result:}$dir"
+    done
+    printf '%s' "$result"
+}
+
 printf 'Running dispatch.sh tests...\n\n'
 
 # Pass-through: regular prose
@@ -59,6 +74,25 @@ check "passes through malformed JSON" 0 \
 # Pass-through: slash-only (/) is not a valid command
 check "passes through bare slash" 0 \
     bash -c "printf '{\"prompt\":\"/\"}' | bash '$DISPATCH'"
+
+# Pass-through: other invalid command-name shapes called out in the comment (dispatch-commands.sh:32)
+check "passes through //" 0 \
+    bash -c "printf '{\"prompt\":\"//\"}' | bash '$DISPATCH'"
+check "passes through /123 (leading digit)" 0 \
+    bash -c "printf '{\"prompt\":\"/123\"}' | bash '$DISPATCH'"
+check "passes through /-flag (leading hyphen)" 0 \
+    bash -c "printf '{\"prompt\":\"/-flag\"}' | bash '$DISPATCH'"
+
+# Pass-through: valid JSON with no "prompt" key at all (relies on d.get('prompt','') default)
+check "passes through JSON missing the prompt key" 0 \
+    bash -c "printf '{\"other_field\":\"value\"}' | bash '$DISPATCH'"
+
+# python3 missing: fails open (passes through) with a diagnostic on stderr, not silently
+NO_PYTHON3_PATH=$(strip_python3_from_path)
+check "passes through when python3 is missing" 0 \
+    bash -c "printf '{\"prompt\":\"/ping\"}' | PATH='$NO_PYTHON3_PATH' '$BASH_BIN' '$DISPATCH'"
+check_output "python3-missing diagnostic goes to stderr" 'python3 not found' \
+    bash -c "printf '{\"prompt\":\"/ping\"}' | PATH='$NO_PYTHON3_PATH' '$BASH_BIN' '$DISPATCH'"
 
 # Register /ping and verify block decision is returned
 cat > "$TEMP_DIR/ping.sh" << 'EOF'
@@ -129,6 +163,21 @@ check "passes through unknown command with project and global dirs set" 0 \
 check "does not fall back to global when CLAUDE_COMMANDS_DIR is explicitly set" 0 \
     env CLAUDE_PROJECT_DIR="$TEMP_PROJECT" HOME="$TEMP_HOME" CLAUDE_COMMANDS_DIR="$TEMP_DIR" \
         bash -c "printf '{\"prompt\":\"/global-only\"}' | bash '$DISPATCH'"
+
+# Project-scope script takes priority when the same name exists in both scopes
+mkdir -p "$TEMP_PROJECT/.claude/commands"
+cat > "$TEMP_PROJECT/.claude/commands/both-scopes.sh" << 'EOF'
+#!/usr/bin/env bash
+echo "from project"
+EOF
+cat > "$TEMP_HOME/.claude/commands/both-scopes.sh" << 'EOF'
+#!/usr/bin/env bash
+echo "from global"
+EOF
+unset CLAUDE_COMMANDS_DIR
+check_output "project script wins when both scopes have the same name" 'from project' \
+    env CLAUDE_PROJECT_DIR="$TEMP_PROJECT" HOME="$TEMP_HOME" \
+        bash -c "printf '{\"prompt\":\"/both-scopes\"}' | bash '$DISPATCH'"
 
 rm -rf "$TEMP_PROJECT" "$TEMP_HOME"
 export CLAUDE_COMMANDS_DIR="$TEMP_DIR"

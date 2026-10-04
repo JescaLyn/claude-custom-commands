@@ -24,37 +24,49 @@ if ! command -v python3 &>/dev/null; then
     exit 1
 fi
 
+GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
+GLOBAL_HOOKS_DIR="$HOME/.claude/hooks"
+GLOBAL_CONSTANTS_DIR="$HOME/.claude/constants"
+GLOBAL_SKILLS_DIR="$HOME/.claude/skills"
+GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+
 if [[ -n "${1:-}" ]]; then
     TARGET_PROJECT_DIR="${1/#~/$HOME}"
     if [[ ! -d "$TARGET_PROJECT_DIR" ]]; then
         printf 'Error: project directory not found: %s\n' "$TARGET_PROJECT_DIR" >&2
         exit 1
     fi
-    COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
-    HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
-    CONSTANTS_DIR="$TARGET_PROJECT_DIR/.claude/constants"
-    SKILLS_DIR="$TARGET_PROJECT_DIR/.claude/skills"
-    SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
+    PROJECT_COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    PROJECT_HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
+    PROJECT_CONSTANTS_DIR="$TARGET_PROJECT_DIR/.claude/constants"
+    PROJECT_SKILLS_DIR="$TARGET_PROJECT_DIR/.claude/skills"
+    PROJECT_SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
+
+    RESOLVED_COMMANDS_DIR="$PROJECT_COMMANDS_DIR"
+    RESOLVED_HOOKS_DIR="$PROJECT_HOOKS_DIR"
+    RESOLVED_CONSTANTS_DIR="$PROJECT_CONSTANTS_DIR"
+    RESOLVED_SKILLS_DIR="$PROJECT_SKILLS_DIR"
+    RESOLVED_SETTINGS="$PROJECT_SETTINGS"
     # ${CLAUDE_PROJECT_DIR} is resolved by Claude Code at runtime — use it as a literal
     # so the hook path stays correct regardless of working directory.
     HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
     CONFLICT_HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh'
 else
-    COMMANDS_DIR="$HOME/.claude/commands"
-    HOOKS_DIR="$HOME/.claude/hooks"
-    CONSTANTS_DIR="$HOME/.claude/constants"
-    SKILLS_DIR="$HOME/.claude/skills"
-    SETTINGS="$HOME/.claude/settings.json"
+    RESOLVED_COMMANDS_DIR="$GLOBAL_COMMANDS_DIR"
+    RESOLVED_HOOKS_DIR="$GLOBAL_HOOKS_DIR"
+    RESOLVED_CONSTANTS_DIR="$GLOBAL_CONSTANTS_DIR"
+    RESOLVED_SKILLS_DIR="$GLOBAL_SKILLS_DIR"
+    RESOLVED_SETTINGS="$GLOBAL_SETTINGS"
     HOOK_CMD='$HOME/.claude/hooks/dispatch-commands.sh'
     CONFLICT_HOOK_CMD='$HOME/.claude/hooks/check-slash-conflict.sh'
 fi
 
-HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
-CHECK_SCRIPT="$HOOKS_DIR/check-slash-conflict.sh"
+HOOK_SCRIPT="$RESOLVED_HOOKS_DIR/dispatch-commands.sh"
+CHECK_SCRIPT="$RESOLVED_HOOKS_DIR/check-slash-conflict.sh"
 
 printf 'Installing custom command dispatcher...\n\n'
 
-mkdir -p "$HOOKS_DIR" "$COMMANDS_DIR" "$CONSTANTS_DIR" "$SKILLS_DIR"
+mkdir -p "$RESOLVED_HOOKS_DIR" "$RESOLVED_COMMANDS_DIR" "$RESOLVED_CONSTANTS_DIR" "$RESOLVED_SKILLS_DIR"
 
 # Copy hooks
 cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/dispatch-commands.sh" "$HOOK_SCRIPT"
@@ -64,10 +76,10 @@ printf '  Installed: %s\n' "$HOOK_SCRIPT"
 printf '  Installed: %s\n' "$CHECK_SCRIPT"
 
 # Copy constants
-cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/constants/builtin-commands.txt" "$CONSTANTS_DIR/builtin-commands.txt"
-cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/constants/bundled-skills.txt" "$CONSTANTS_DIR/bundled-skills.txt"
-printf '  Installed: %s\n' "$CONSTANTS_DIR/builtin-commands.txt"
-printf '  Installed: %s\n' "$CONSTANTS_DIR/bundled-skills.txt"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/constants/builtin-commands.txt" "$RESOLVED_CONSTANTS_DIR/builtin-commands.txt"
+cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/constants/bundled-skills.txt" "$RESOLVED_CONSTANTS_DIR/bundled-skills.txt"
+printf '  Installed: %s\n' "$RESOLVED_CONSTANTS_DIR/builtin-commands.txt"
+printf '  Installed: %s\n' "$RESOLVED_CONSTANTS_DIR/bundled-skills.txt"
 
 # Copy commands (skip if the user already has a version)
 printf '\nBuilt-in commands:\n'
@@ -75,7 +87,7 @@ for cmd in "$CUSTOM_COMMANDS_REPO_DIR/.claude/commands/"*.sh; do
     name=$(basename "${cmd%.sh}")
     [[ "$name" == "install-custom-commands" ]] && continue
     [[ "$name" == "install-custom-commands-minimal" ]] && continue
-    dest="$COMMANDS_DIR/$name.sh"
+    dest="$RESOLVED_COMMANDS_DIR/$name.sh"
     if [[ -f "$dest" ]]; then
         printf '  Skipped (exists): /%s\n' "$name"
     else
@@ -89,7 +101,7 @@ for stub in "$CUSTOM_COMMANDS_REPO_DIR/.claude/commands/"*.md; do
     [[ -f "$stub" ]] || continue
     [[ "$(basename "$stub" .md)" == "install-custom-commands" ]] && continue
     [[ "$(basename "$stub" .md)" == "install-custom-commands-minimal" ]] && continue
-    dest="$COMMANDS_DIR/$(basename "$stub")"
+    dest="$RESOLVED_COMMANDS_DIR/$(basename "$stub")"
     [[ -f "$dest" ]] || cp "$stub" "$dest"
 done
 
@@ -98,7 +110,7 @@ printf '\nSkills:\n'
 for skill_dir in "$CUSTOM_COMMANDS_REPO_DIR/.claude/skills/"/*/; do
     [[ -d "$skill_dir" ]] || continue
     skill=$(basename "$skill_dir")
-    SKILL_DEST_DIR="$SKILLS_DIR/$skill"
+    SKILL_DEST_DIR="$RESOLVED_SKILLS_DIR/$skill"
     mkdir -p "$SKILL_DEST_DIR"
     cp -r "$skill_dir/." "$SKILL_DEST_DIR/"
     for f in "$SKILL_DEST_DIR/"*.sh; do [[ -f "$f" ]] && chmod +x "$f"; done
@@ -107,7 +119,7 @@ done
 
 # Register hook in settings.json
 printf '\nHook registration:\n'
-UPDATED=$(python3 - "$SETTINGS" "$HOOK_CMD" << 'PYEOF'
+UPDATED=$(python3 - "$RESOLVED_SETTINGS" "$HOOK_CMD" << 'PYEOF'
 import json, sys, os
 settings_path, hook_cmd = sys.argv[1], sys.argv[2]
 try:
@@ -128,13 +140,13 @@ print(json.dumps(s, indent=2))
 PYEOF
 )
 if [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
-    printf '  Hook already registered in %s\n' "$SETTINGS"
+    printf '  Hook already registered in %s\n' "$RESOLVED_SETTINGS"
 else
-    printf '%s\n' "$UPDATED" > "$SETTINGS"
-    printf '  Registered UserPromptSubmit hook in %s\n' "$SETTINGS"
+    printf '%s\n' "$UPDATED" > "$RESOLVED_SETTINGS"
+    printf '  Registered UserPromptSubmit hook in %s\n' "$RESOLVED_SETTINGS"
 fi
 
-UPDATED=$(python3 - "$SETTINGS" "$CONFLICT_HOOK_CMD" << 'PYEOF'
+UPDATED=$(python3 - "$RESOLVED_SETTINGS" "$CONFLICT_HOOK_CMD" << 'PYEOF'
 import json, sys, os
 settings_path, hook_cmd = sys.argv[1], sys.argv[2]
 try:
@@ -156,10 +168,10 @@ print(json.dumps(s, indent=2))
 PYEOF
 )
 if [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
-    printf '  Conflict-check hook already registered in %s\n' "$SETTINGS"
+    printf '  Conflict-check hook already registered in %s\n' "$RESOLVED_SETTINGS"
 else
-    printf '%s\n' "$UPDATED" > "$SETTINGS"
-    printf '  Registered PreToolUse:Write hook in %s\n' "$SETTINGS"
+    printf '%s\n' "$UPDATED" > "$RESOLVED_SETTINGS"
+    printf '  Registered PreToolUse:Write hook in %s\n' "$RESOLVED_SETTINGS"
 fi
 
 printf '\nDone. Restart Claude Code for the hook to take effect.\n\n'

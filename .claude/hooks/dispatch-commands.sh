@@ -11,6 +11,11 @@ set -euo pipefail
 
 cd "$HOME"  # python3 needs an accessible CWD to import modules
 
+if ! command -v python3 &>/dev/null; then
+    printf 'dispatch-commands.sh: python3 not found on PATH; custom commands are disabled until python3 is installed.\n' >&2
+    exit 0
+fi
+
 CURRENT_PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
 PROJECT_COMMANDS_DIR="${CURRENT_PROJECT_DIR:+$CURRENT_PROJECT_DIR/.claude/commands}"
 GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"

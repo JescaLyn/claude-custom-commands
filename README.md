@@ -125,7 +125,7 @@ The banner line is hardcoded by Claude Code and cannot be suppressed. The box-fr
 
 ### Conflict checking
 
-A `PreToolUse:Write` hook (`check-slash-conflict.sh`) fires whenever Claude Code writes a new command or skill file. It checks the name against Claude Code's built-in commands and bundled skills, as well as any existing commands and skills at the same scope, and blocks the write if a conflict would cause a command to silently shadow something else. You can override the block when prompted.
+A `PreToolUse:Write` hook (`check-slash-conflict.sh`) fires whenever Claude Code writes a new command or skill file. For a **command** write, it checks the name against Claude Code's built-in commands and bundled skills, existing commands and skills at the same scope, and cross-scope conflicts: a project-scope entry that would shadow an existing global one, or a global entry that would be unreachable because the open project already has the same name. The write is blocked if any conflict is found. For a **skill** write, the checks are narrower: a same-name custom command (which would intercept the skill entirely) blocks the write, a same-name built-in command or bundled skill is only an informational note (both can coexist in the slash menu), and cross-scope shadowing between skills is not checked. You can override a block when prompted.
 
 The `constants/` directory holds `builtin-commands.txt` and `bundled-skills.txt` — one name per line. These are what `check-slash-conflict.sh` reads to detect conflicts.
 
@@ -137,7 +137,7 @@ Claude Code's built-in commands and bundled skills change between versions. The 
 /refresh-slash-names
 ```
 
-Run this after updating Claude Code, or any time the conflict checker flags a name that doesn't seem like a real conflict. When run from within this repository, it also updates `.claude/constants/` in the repo so the bundled constants stay current for users who clone it.
+Run this after updating Claude Code, or any time the conflict checker flags a name that doesn't seem like a real conflict. It always writes to `~/.claude/constants/`. If the current directory also has a `.claude/constants/` (as this repo's root does), it writes there too. That's a plain `$PWD/.claude/constants` check, not logic specific to this repo, so it applies the same way in any project with a `.claude/constants/` directory.
 
 ## Creating a Command
 
@@ -158,7 +158,16 @@ Claude checks for name conflicts with built-in commands and installed skills, ge
 /create-command-from-script --project ~/projects/myapp deploy ~/scripts/deploy.sh
 ```
 
-`/create-command-from-script` defaults to global scope; pass a project path as the final positional argument (or via `--project`) to install into a project instead. It also accepts `--name` and `--script` flags as alternatives to positional arguments, for cases where argument order is unclear. `/create-command` auto-detects scope from `$PWD/.claude`; pass `--global` to force global install. Both check for name conflicts: `/create-command` asks whether to proceed; `/create-command-from-script` blocks and requires `--force` to override.
+`/create-command-from-script` defaults to global scope; pass a project path as the final positional argument (or via `--project`) to install into a project instead. It also accepts `--name` and `--script` flags as alternatives to positional arguments, for cases where argument order is unclear. `/create-command` auto-detects scope from `$PWD/.claude`; pass `--global` to force global install. Both check for name conflicts the same way: if a conflict is found and `--force` wasn't passed, the write is blocked and you're told to re-run with `--force` or pick a different name — neither one prompts interactively.
+
+## Removing a Command
+
+```
+/remove-command deploy                   # removes first match: project scope, then global
+/remove-command deploy ~/projects/myapp  # removes only from that project
+```
+
+Without a project path, `/remove-command` checks project scope first and removes the first match it finds. Run it twice to remove from both scopes. Pass a project path to restrict removal to that location with no fallback.
 
 **What a command script looks like:**
 
@@ -178,13 +187,20 @@ echo "Done."
 
 Scripts receive arguments as `$*`. Write output to stdout. Exit 0 = success, non-zero = error.
 
-To edit an included command, modify the script in `~/.claude/commands/` directly. The install script skips files that already exist, so edits survive reinstalls.
+Registering a command also creates a `<name>.md` file next to the `.sh` script. It's an autocomplete stub only: Claude Code reads it for slash-menu display, but the `UserPromptSubmit` hook always runs the `.sh` file directly, so the `.md` file's content has no effect on what the command actually does.
+
+To edit an included command, modify the script in `~/.claude/commands/` directly. The install script skips command scripts and `.md` stubs that already exist, so edits to those survive reinstalls. Skill directories (`.claude/skills/*`) are not covered by that protection: they're always overwritten on reinstall, so don't hand-edit an installed skill's files; edit the skill in this repo and reinstall instead.
 
 ## Environment Variables
 
+Primarily used by the test suite to point scripts at temporary directories; not something you typically set by hand.
+
 | Variable | Default | Description |
 |---|---|---|
-| `CLAUDE_COMMANDS_DIR` | (none) | Override the directory where command scripts are looked up. Suppresses both project-local and global lookup; useful for testing. |
+| `CLAUDE_COMMANDS_DIR` | (none) | Override the directory where command scripts are looked up. Suppresses both project-local and global lookup. |
+| `CLAUDE_SKILLS_DIR` | (none) | Override the directory `check-slash-conflict.sh` looks in for installed skills. |
+| `CLAUDE_CONSTANTS_DIR` | (none) | Override the directory `check-slash-conflict.sh` and `remove-command.sh` read `builtin-commands.txt` / `bundled-skills.txt` from. |
+| `CLAUDE_CHECK_SLASH_SCRIPT` | (none) | Override which conflict-checker script `create-command-from-script.sh` invokes. |
 
 ## Manual Install
 
@@ -195,4 +211,4 @@ Use the terminal directly when Claude Code isn't available:
 ./install.sh /path/to/project   # project
 ```
 
-Hook and constant files are always overwritten on reinstall. Command scripts are skipped if they already exist. After `git pull`, re-run `./install.sh` to pick up hook and constant updates.
+Hook, constant, and skill files are always overwritten on reinstall. Command scripts and `.md` stubs are skipped if they already exist. After `git pull`, re-run `./install.sh` to pick up hook, constant, and skill updates.

@@ -50,18 +50,20 @@ if [[ ! -f "$SCRIPT_PATH" ]]; then
 fi
 
 # Scope: global by default; project when TARGET_PROJECT_DIR is given
+GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
 if [[ -n "$TARGET_PROJECT_DIR" ]]; then
-    INSTALL_COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    PROJECT_COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    RESOLVED_COMMANDS_DIR="$PROJECT_COMMANDS_DIR"
     IS_GLOBAL=false
 else
-    INSTALL_COMMANDS_DIR="$HOME/.claude/commands"
+    RESOLVED_COMMANDS_DIR="$GLOBAL_COMMANDS_DIR"
     IS_GLOBAL=true
 fi
-INSTALL_COMMANDS_DIR="${CLAUDE_COMMANDS_DIR:-$INSTALL_COMMANDS_DIR}"
+RESOLVED_COMMANDS_DIR="${CLAUDE_COMMANDS_DIR:-$RESOLVED_COMMANDS_DIR}"
 
 CHECK_SCRIPT="${CLAUDE_CHECK_SLASH_SCRIPT:-$HOME/.claude/hooks/check-slash-conflict.sh}"
 
-DEST="$INSTALL_COMMANDS_DIR/$NAME.sh"
+DEST="$RESOLVED_COMMANDS_DIR/$NAME.sh"
 
 if [[ -f "$DEST" ]]; then
     printf 'Command /%s already exists at %s\n' "$NAME" "$DEST"
@@ -85,11 +87,11 @@ if [[ "$FORCE" == "false" ]] && [[ -x "$CHECK_SCRIPT" ]]; then
     fi
 fi
 
-mkdir -p "$INSTALL_COMMANDS_DIR"
+mkdir -p "$RESOLVED_COMMANDS_DIR"
 cp "$SCRIPT_PATH" "$DEST"
 chmod +x "$DEST"
 
-MD_DEST="$INSTALL_COMMANDS_DIR/$NAME.md"
+MD_DEST="$RESOLVED_COMMANDS_DIR/$NAME.md"
 if [[ ! -f "$MD_DEST" ]]; then
     DESCRIPTION=$(grep -m1 '^# description:' "$SCRIPT_PATH" 2>/dev/null | sed 's/^# description: *//' || true)
     DESCRIPTION="${DESCRIPTION:-Custom command /$NAME}"
@@ -98,4 +100,4 @@ if [[ ! -f "$MD_DEST" ]]; then
 fi
 
 printf 'Created /%s from %s\n' "$NAME" "$SCRIPT_PATH"
-printf 'Installed to %s\n' "$INSTALL_COMMANDS_DIR"
+printf 'Installed to %s\n' "$RESOLVED_COMMANDS_DIR"

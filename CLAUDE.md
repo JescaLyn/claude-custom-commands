@@ -16,33 +16,37 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
 .claude/                                   mirrors ~/.claude/; install.sh copies these into place
   hooks/
     dispatch-commands.sh             UserPromptSubmit hook; runs scripts, returns JSON {decision:block}
-    check-slash-conflict.sh          PreToolUse:Write hook (and direct-mode checker); blocks new commands/skills conflicting with built-ins or existing names; approval-file mechanism to override
+    check-slash-conflict.sh          PreToolUse:Write hook; name conflict checker (same-scope and cross-scope); approval-file override
   constants/
-    builtin-commands.txt                   one built-in name per line; read by check-slash-conflict.sh; written globally (and project-locally if .claude/constants/ exists) by refresh-slash-names
-    bundled-skills.txt                     one bundled skill name per line; read by check-slash-conflict.sh; written globally (and project-locally if .claude/constants/ exists) by refresh-slash-names
+    builtin-commands.txt             built-in command names; read by conflict checker; updated by /refresh-slash-names
+    bundled-skills.txt               bundled skill names; read by conflict checker; updated by /refresh-slash-names
   commands/
-    ping.sh                                /ping — smoke test
-    now.sh                                 /now — show current date and time
-    commands-help.sh                       /commands-help — list registered commands
-    install-custom-commands.sh             not installed globally — repo-only; requires repo dir to be present
-    install-custom-commands-minimal.sh     not installed globally — repo-only; installs only dispatch-commands.sh + hook registration; project scope optionally annotates README
-    uninstall-custom-commands.sh           /uninstall-custom-commands — uninstall globally or remove from a project
-    create-command-from-script.sh          /create-command-from-script — register a script as a command
-    remove-command.sh                      /remove-command — uninstall a custom command
+    ping.sh                          /ping — smoke test
+    now.sh                           /now — show current date and time
+    commands-help.sh                 /commands-help — list registered commands
+    install-custom-commands.sh       not installed globally — repo-only; requires repo dir to be present
+    install-custom-commands-minimal.sh  not installed globally — repo-only; dispatcher + hook only; annotates project README
+    uninstall-custom-commands.sh     /uninstall-custom-commands — uninstall globally or remove from a project
+    create-command-from-script.sh    /create-command-from-script — register a script globally (default) or into [project-path]
+    remove-command.sh                /remove-command — progressive lookup (project → global); [project-path] restricts scope
   skills/
-    create-command/SKILL.md                /create-command — shell substitution calls preflight, then AI generates script and installs
-    create-command/create-command-preflight.sh  parses args, detects scope, locates tools, checks conflicts; runs before inference via SKILL.md shell substitution
-    refresh-slash-names/SKILL.md           /refresh-slash-names — fetches docs (inference), delegates write to script
+    create-command/SKILL.md          /create-command — shell substitution calls preflight, then AI generates script and installs
+    create-command/create-command-preflight.sh  parses args, detects scope, locates tools, checks conflicts; runs before inference
+    refresh-slash-names/SKILL.md     /refresh-slash-names — fetches docs (inference), delegates write to script
     refresh-slash-names/write-slash-names.sh  helper script; writes, normalizes, and confirms constants files
 
 install.sh                                 thin wrapper; delegates to install-custom-commands.sh
 uninstall.sh                               thin wrapper; delegates to uninstall-custom-commands.sh
 
+tests/run-all.sh                           runs all suites below in order; local dev entry point (see DEVELOPMENT.md) — not yet wired into CI (see Known Gaps)
+tests/sample-hello.sh                      fixture script used by test-integration.sh (and manually, per DEVELOPMENT.md)
 tests/test-dispatch.sh
 tests/test-check-slash-conflict.sh
 tests/test-create-command-from-script.sh
 tests/test-remove-command.sh
+tests/test-commands-help.sh
 tests/test-install-custom-commands.sh
+tests/test-install-custom-commands-minimal.sh
 tests/test-uninstall-custom-commands.sh
 tests/test-write-slash-names.sh
 tests/test-create-command-preflight.sh
@@ -60,6 +64,14 @@ tests/test-integration.sh
 **install-custom-commands.sh is the install implementation**: `install.sh` and `uninstall.sh` at the project root are thin wrappers that delegate to the command scripts. The command scripts contain the actual logic so `/install-custom-commands` and `/uninstall-custom-commands` are self-contained — no delegation to a separate file required.
 
 **Project install scope**: Installing with a path arg (`/install-custom-commands /path/to/project`) is fully isolated — hooks, commands, skills, and constants all go to the project's `.claude/` directory. The hook is registered in the project's `.claude/settings.json` using `${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh` so it resolves correctly regardless of working directory. Nothing is written to `~/.claude/`.
+
+**Positional project-path over `--global` flag**: `create-command-from-script` and `remove-command` accept an optional positional `[project-path]` argument rather than a `--global` flag, matching the pattern of `install-custom-commands` and `uninstall-custom-commands`. Global is the default; passing a path opts into project scope. A `--global` flag was rejected because it would be the implicit default and its absence would be ambiguous — "no flag" and "explicit global" would mean the same thing.
+
+**`remove-command` progressive lookup**: Removal searches project scope first, then global — the command is found wherever it lives, one scope at a time. Pass an explicit `[project-path]` to restrict removal to that location with no fallback. Running remove twice removes from both scopes. This differs from install operations (which target a specific scope up front) because the goal of removal is "find it and remove it" rather than "install into a specific location."
+
+**Explicit scope variable naming**: All scripts use `PROJECT_*`, `GLOBAL_*`, and `RESOLVED_*` prefixes (e.g. `PROJECT_COMMANDS_DIR`, `GLOBAL_COMMANDS_DIR`, `RESOLVED_COMMANDS_DIR`) rather than a single collapsed variable. The explicit naming makes the active scope visible at every decision point and eliminates the ambiguity that comes with a single `COMMANDS_DIR` that conflated scope determination with lookup result.
+
+**`check-slash-conflict.sh` cross-scope awareness**: The conflict checker validates both same-scope and cross-scope conflicts. A project-scope install is blocked if a same-name entry already exists globally (the project entry would shadow it). A global install is blocked if a same-name entry already exists in the currently open project (the global entry would be unreachable there). This prevents silent dispatch mismatches where a command appears to install successfully but is never reachable because another entry intercepts the name first.
 
 **Global-first constants lookup**: `check-slash-conflict.sh` always reads `~/.claude/constants/`, falling back to project-local constants only if the global directory does not exist. Built-in command names and bundled skill names are facts about Claude Code itself — one global update benefits all sessions. Project installs still copy constants locally so the hook works even without a global install.
 
@@ -80,3 +92,16 @@ tests/test-integration.sh
 **The banner is hardcoded**: `UserPromptSubmit operation blocked by hook: [command]: <reason>` cannot be suppressed. There is no documented or undocumented field that removes the header line or the `[command]:` identifier prefix. The minimum visible output is one banner line plus the reason content.
 
 **`/commands-help` instead of `/help`**: Avoided `/help` to prevent shadowing Claude Code's built-in. The command is named `/commands-help` to be unambiguous.
+
+## Known Gaps / Follow-Up
+
+Not blockers for release, but not yet done. Worth picking up when touching the relevant area:
+
+- **CI doesn't run all suites**: `.github/workflows/test.yml` inlines only 7 of the 11 suites in `tests/run-all.sh` — missing `test-commands-help.sh`, `test-install-custom-commands-minimal.sh`, `test-write-slash-names.sh`, and `test-create-command-preflight.sh`. Point it at `tests/run-all.sh` instead of listing suites individually, so new suites are covered automatically.
+- **No CONTRIBUTING.md / CODE_OF_CONDUCT.md / SECURITY.md.** `DEVELOPMENT.md` covers running tests only, not the contribution process.
+- **No versioning**: no `VERSION` file, no version field, no git tags.
+- **No enforced shellcheck**: one inline `# shellcheck disable=SC2086` suppression exists (`dispatch-commands.sh`), proving it's been run manually at least once, but there's no CI step or `.shellcheckrc`.
+- **No `-h`/`--help` flag support**: user-facing scripts print usage on missing/bad args, but none recognize `-h`/`--help` explicitly — a bare `-h` gets parsed as a positional name/path and produces a confusing "Invalid name: -h" style error instead of usage text.
+- **Install doesn't handle pre-existing corrupt `settings.json` as safely as uninstall does**: if `settings.json` exists but is invalid JSON, `install-custom-commands.sh` / `install-custom-commands-minimal.sh` silently reset it to `{}` and overwrite, discarding whatever was in there. `uninstall-custom-commands.sh`'s equivalent (`NO_CHANGE`) leaves the file untouched instead — install should match that behavior.
+- **`check-slash-conflict.sh` skill writes don't get cross-scope shadow checking**: command writes are checked against the other scope (a project command shadowing a global one, or vice versa); skill writes only check for an intercepting custom command and give an informational note for built-in/bundled name collisions — a project-scope skill silently shadowing a global skill of the same name isn't flagged. Documented as current behavior in the README; extending the cross-scope check to skills would close the gap.
+- **`refresh-slash-names/SKILL.md` builds a shell command from fetched doc content**: it substitutes command/skill names extracted from a `WebFetch` of Claude Code's docs directly into a `printf ... > file` command in the prompt, with no sanitization step between extraction and execution. Low risk (requires compromised docs plus model complicity), but it also cuts against this repo's own scripts-over-inference convention — the substitution belongs in `write-slash-names.sh` (reading names from stdin/a file) rather than in the skill prompt.

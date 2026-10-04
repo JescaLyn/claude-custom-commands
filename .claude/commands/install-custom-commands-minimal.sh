@@ -25,6 +25,10 @@ if ! command -v python3 &>/dev/null; then
     exit 1
 fi
 
+GLOBAL_HOOKS_DIR="$HOME/.claude/hooks"
+GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
+GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+
 IS_PROJECT=false
 if [[ -n "${1:-}" ]]; then
     IS_PROJECT=true
@@ -33,29 +37,33 @@ if [[ -n "${1:-}" ]]; then
         printf 'Error: project directory not found: %s\n' "$TARGET_PROJECT_DIR" >&2
         exit 1
     fi
-    HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
-    COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
-    SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
+    PROJECT_HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
+    PROJECT_COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    PROJECT_SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
+
+    RESOLVED_HOOKS_DIR="$PROJECT_HOOKS_DIR"
+    RESOLVED_COMMANDS_DIR="$PROJECT_COMMANDS_DIR"
+    RESOLVED_SETTINGS="$PROJECT_SETTINGS"
     HOOK_CMD='${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
 else
-    HOOKS_DIR="$HOME/.claude/hooks"
-    COMMANDS_DIR="$HOME/.claude/commands"
-    SETTINGS="$HOME/.claude/settings.json"
+    RESOLVED_HOOKS_DIR="$GLOBAL_HOOKS_DIR"
+    RESOLVED_COMMANDS_DIR="$GLOBAL_COMMANDS_DIR"
+    RESOLVED_SETTINGS="$GLOBAL_SETTINGS"
     HOOK_CMD='$HOME/.claude/hooks/dispatch-commands.sh'
 fi
 
-HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
+HOOK_SCRIPT="$RESOLVED_HOOKS_DIR/dispatch-commands.sh"
 
 printf 'Installing minimal custom command dispatcher...\n\n'
 
-mkdir -p "$HOOKS_DIR" "$COMMANDS_DIR"
+mkdir -p "$RESOLVED_HOOKS_DIR" "$RESOLVED_COMMANDS_DIR"
 
 cp "$CUSTOM_COMMANDS_REPO_DIR/.claude/hooks/dispatch-commands.sh" "$HOOK_SCRIPT"
 chmod +x "$HOOK_SCRIPT"
 printf '  Installed: %s\n' "$HOOK_SCRIPT"
 
 printf '\nHook registration:\n'
-UPDATED=$(python3 - "$SETTINGS" "$HOOK_CMD" << 'PYEOF'
+UPDATED=$(python3 - "$RESOLVED_SETTINGS" "$HOOK_CMD" << 'PYEOF'
 import json, sys, os
 settings_path, hook_cmd = sys.argv[1], sys.argv[2]
 try:
@@ -76,10 +84,10 @@ print(json.dumps(s, indent=2))
 PYEOF
 )
 if [[ "$UPDATED" == "ALREADY_REGISTERED" ]]; then
-    printf '  Hook already registered in %s\n' "$SETTINGS"
+    printf '  Hook already registered in %s\n' "$RESOLVED_SETTINGS"
 else
-    printf '%s\n' "$UPDATED" > "$SETTINGS"
-    printf '  Registered UserPromptSubmit hook in %s\n' "$SETTINGS"
+    printf '%s\n' "$UPDATED" > "$RESOLVED_SETTINGS"
+    printf '  Registered UserPromptSubmit hook in %s\n' "$RESOLVED_SETTINGS"
 fi
 
 if [[ "$IS_PROJECT" == "true" ]]; then
@@ -101,4 +109,4 @@ This project has [custom commands](https://github.com/JescaLyn/claude-custom-com
 fi
 
 printf '\nDone. Restart Claude Code for the hook to take effect.\n\n'
-printf 'Place scripts in %s/<name>.sh to register a command.\n' "$COMMANDS_DIR"
+printf 'Place scripts in %s/<name>.sh to register a command.\n' "$RESOLVED_COMMANDS_DIR"

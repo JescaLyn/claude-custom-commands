@@ -36,3 +36,9 @@ fi
 printf 'Global commands (%s):\n\n' "$GLOBAL_COMMANDS_DIR"
 list_commands "$GLOBAL_COMMANDS_DIR"
 [[ "$_found" -eq 0 ]] && printf '  No commands found.\n'
+
+# The script's own exit status must not leak from the "No commands found" check above:
+# when $_found is 1 (the common case), that [[ ]] && printf test is false and its exit
+# status would otherwise become this script's exit status — making dispatch-commands.sh
+# treat a normal, successful /commands-help listing as a failed command.
+exit 0

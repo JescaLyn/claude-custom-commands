@@ -70,17 +70,36 @@ if [[ $# -ge 1 ]]; then
     fi
 else
     HOOK_MODE=true
+
+    if ! command -v python3 &>/dev/null; then
+        printf 'check-slash-conflict.sh: python3 not found on PATH; conflict checking disabled for this write.\n' >&2
+        exit 0
+    fi
+
     INPUT=$(cat)
+    set +e
     PARSED=$(printf '%s' "$INPUT" | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(3)
 if d.get('tool_name') != 'Write':
     sys.exit(1)
 fp = d.get('tool_input', {}).get('file_path', '')
 sid = d.get('session_id', 'shared')
 print(fp)
 print(sid)
-" 2>/dev/null) || exit 0
+")
+    PARSE_EC=$?
+    set -e
+
+    if [[ $PARSE_EC -eq 1 ]]; then
+        exit 0  # not a Write tool call
+    elif [[ $PARSE_EC -ne 0 ]]; then
+        printf 'check-slash-conflict.sh: failed to parse hook input JSON (exit %d); conflict check skipped for this write.\n' "$PARSE_EC" >&2
+        exit 0
+    fi
 
     FILE_PATH=$(printf '%s\n' "$PARSED" | head -1)
     SESSION_ID=$(printf '%s\n' "$PARSED" | tail -1)

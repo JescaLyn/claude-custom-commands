@@ -111,66 +111,71 @@ if [[ -n "${1:-}" ]]; then
     printf 'Removing custom commands from %s\n\n' "$TARGET_PROJECT_DIR"
 
     # Remove command files
-    COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
-    if [[ -d "$COMMANDS_DIR" ]]; then
+    PROJECT_COMMANDS_DIR="$TARGET_PROJECT_DIR/.claude/commands"
+    if [[ -d "$PROJECT_COMMANDS_DIR" ]]; then
         for name in commands-help create-command-from-script now ping \
                     remove-command uninstall-custom-commands; do
             removed=0
-            [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
-            [[ -f "$COMMANDS_DIR/$name.md" ]] && { rm "$COMMANDS_DIR/$name.md"; removed=1; }
+            [[ -f "$PROJECT_COMMANDS_DIR/$name.sh" ]] && { rm "$PROJECT_COMMANDS_DIR/$name.sh"; removed=1; }
+            [[ -f "$PROJECT_COMMANDS_DIR/$name.md" ]] && { rm "$PROJECT_COMMANDS_DIR/$name.md"; removed=1; }
             [[ $removed -eq 1 ]] && printf '  Removed: /%s\n' "$name"
         done
     fi
 
     # Remove constants
-    for f in "$TARGET_PROJECT_DIR/.claude/constants/builtin-commands.txt" \
-             "$TARGET_PROJECT_DIR/.claude/constants/bundled-skills.txt"; do
+    PROJECT_CONSTANTS_DIR="$TARGET_PROJECT_DIR/.claude/constants"
+    for f in "$PROJECT_CONSTANTS_DIR/builtin-commands.txt" \
+             "$PROJECT_CONSTANTS_DIR/bundled-skills.txt"; do
         [[ -f "$f" ]] && { rm "$f"; printf '  Removed: %s\n' "$f"; }
     done
 
     # Remove hook scripts
-    for f in "$TARGET_PROJECT_DIR/.claude/hooks/dispatch-commands.sh" \
-             "$TARGET_PROJECT_DIR/.claude/hooks/check-slash-conflict.sh"; do
+    PROJECT_HOOKS_DIR="$TARGET_PROJECT_DIR/.claude/hooks"
+    for f in "$PROJECT_HOOKS_DIR/dispatch-commands.sh" \
+             "$PROJECT_HOOKS_DIR/check-slash-conflict.sh"; do
         [[ -f "$f" ]] && { rm "$f"; printf '  Removed: %s\n' "$f"; }
     done
 
     # Remove skills
+    PROJECT_SKILLS_DIR="$TARGET_PROJECT_DIR/.claude/skills"
     for skill in create-command refresh-slash-names; do
-        target="$TARGET_PROJECT_DIR/.claude/skills/$skill"
+        target="$PROJECT_SKILLS_DIR/$skill"
         [[ -d "$target" ]] && { rm -rf "$target"; printf '  Removed: %s\n' "$target"; }
     done
 
     # Remove hook entries from project settings.json
-    remove_hook_entry "$TARGET_PROJECT_DIR/.claude/settings.json" \
+    PROJECT_SETTINGS="$TARGET_PROJECT_DIR/.claude/settings.json"
+    remove_hook_entry "$PROJECT_SETTINGS" \
         '${CLAUDE_PROJECT_DIR}/.claude/hooks/dispatch-commands.sh'
-    remove_pretooluse_entry "$TARGET_PROJECT_DIR/.claude/settings.json" \
+    remove_pretooluse_entry "$PROJECT_SETTINGS" \
         '${CLAUDE_PROJECT_DIR}/.claude/hooks/check-slash-conflict.sh'
 
     printf '\nDone.\n'
 else
-    COMMANDS_DIR="$HOME/.claude/commands"
-    HOOKS_DIR="$HOME/.claude/hooks"
-    HOOK_SCRIPT="$HOOKS_DIR/dispatch-commands.sh"
-    CHECK_SCRIPT="$HOOKS_DIR/check-slash-conflict.sh"
-    SETTINGS="$HOME/.claude/settings.json"
-    SKILLS_DIR="$HOME/.claude/skills"
+    GLOBAL_COMMANDS_DIR="$HOME/.claude/commands"
+    GLOBAL_HOOKS_DIR="$HOME/.claude/hooks"
+    HOOK_SCRIPT="$GLOBAL_HOOKS_DIR/dispatch-commands.sh"
+    CHECK_SCRIPT="$GLOBAL_HOOKS_DIR/check-slash-conflict.sh"
+    GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+    GLOBAL_SKILLS_DIR="$HOME/.claude/skills"
+    GLOBAL_CONSTANTS_DIR="$HOME/.claude/constants"
 
     printf 'Uninstalling custom command dispatcher...\n\n'
 
     # Remove command files
-    if [[ -d "$COMMANDS_DIR" ]]; then
+    if [[ -d "$GLOBAL_COMMANDS_DIR" ]]; then
         for name in commands-help create-command-from-script now ping \
                     remove-command uninstall-custom-commands; do
             removed=0
-            [[ -f "$COMMANDS_DIR/$name.sh" ]] && { rm "$COMMANDS_DIR/$name.sh"; removed=1; }
-            [[ -f "$COMMANDS_DIR/$name.md" ]] && { rm "$COMMANDS_DIR/$name.md"; removed=1; }
+            [[ -f "$GLOBAL_COMMANDS_DIR/$name.sh" ]] && { rm "$GLOBAL_COMMANDS_DIR/$name.sh"; removed=1; }
+            [[ -f "$GLOBAL_COMMANDS_DIR/$name.md" ]] && { rm "$GLOBAL_COMMANDS_DIR/$name.md"; removed=1; }
             [[ $removed -eq 1 ]] && printf '  Removed: /%s\n' "$name"
         done
     fi
 
     # Remove constants
-    for f in "$HOME/.claude/constants/builtin-commands.txt" \
-             "$HOME/.claude/constants/bundled-skills.txt"; do
+    for f in "$GLOBAL_CONSTANTS_DIR/builtin-commands.txt" \
+             "$GLOBAL_CONSTANTS_DIR/bundled-skills.txt"; do
         if [[ -f "$f" ]]; then
             rm "$f"
             printf '  Removed: %s\n' "$f"
@@ -191,7 +196,7 @@ else
 
     # Remove skills
     for skill in create-command refresh-slash-names; do
-        target="$SKILLS_DIR/$skill"
+        target="$GLOBAL_SKILLS_DIR/$skill"
         if [[ -d "$target" ]]; then
             rm -rf "$target"
             printf '  Removed: %s\n' "$target"
@@ -200,8 +205,8 @@ else
         fi
     done
 
-    remove_hook_entry "$SETTINGS" "$HOOK_SCRIPT"
-    remove_pretooluse_entry "$SETTINGS" "$CHECK_SCRIPT"
+    remove_hook_entry "$GLOBAL_SETTINGS" "$HOOK_SCRIPT"
+    remove_pretooluse_entry "$GLOBAL_SETTINGS" "$CHECK_SCRIPT"
 
     printf '\nDone.\n'
 fi

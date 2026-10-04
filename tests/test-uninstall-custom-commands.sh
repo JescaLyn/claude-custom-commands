@@ -5,6 +5,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 CMD="$REPO/.claude/commands/uninstall-custom-commands.sh"
+WRAPPER="$REPO/uninstall.sh"
 
 pass=0; fail=0
 
@@ -26,10 +27,39 @@ ORIG_DIR="$PWD"
 TEMP_PROJECT=$(mktemp -d)
 trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT"' EXIT
 
+# Builds a PATH with every directory that contains a python3 executable stripped out,
+# to simulate "python3 not installed" without touching the real PATH. Resolve bash's own
+# absolute path first so the stripped PATH can never accidentally break bash's own lookup.
+BASH_BIN=$(command -v bash)
+strip_python3_from_path() {
+    local dir result="" dirs
+    IFS=':' read -ra dirs <<< "$PATH"
+    for dir in "${dirs[@]}"; do
+        [[ -x "$dir/python3" ]] && continue
+        result="${result:+$result:}$dir"
+    done
+    printf '%s' "$result"
+}
+
 printf 'Running uninstall-custom-commands.sh tests...\n\n'
 
+# --- Missing python3 ---
+printf 'Missing python3:\n'
+NO_PYTHON3_PATH=$(strip_python3_from_path)
+TEMP_HOME_NOPY=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$TEMP_HOME_NOPY"' EXIT
+check "exits 1 when python3 is missing" 1 \
+    env HOME="$TEMP_HOME_NOPY" PATH="$NO_PYTHON3_PATH" "$BASH_BIN" "$CMD"
+STDERR=$(env HOME="$TEMP_HOME_NOPY" PATH="$NO_PYTHON3_PATH" "$BASH_BIN" "$CMD" 2>&1 1>/dev/null || true)
+if printf '%s' "$STDERR" | grep -q 'python3 is required'; then
+    printf '  PASS  clear python3-required error on stderr\n'; (( pass++ )) || true
+else
+    printf '  FAIL  expected stderr about python3, got: %s\n' "$STDERR"; (( fail++ )) || true
+fi
+rm -rf "$TEMP_HOME_NOPY"
+
 # --- Invalid project path ---
-printf 'Invalid project path:\n'
+printf '\nInvalid project path:\n'
 check "exits 1 for nonexistent project path" 1 bash "$CMD" "/nonexistent/$$"
 
 STDERR=$(bash "$CMD" "/nonexistent/$$" 2>&1 1>/dev/null || true)
@@ -58,7 +88,7 @@ PROJECT_CMDS="$TEMP_PROJECT/.claude/commands"
 PROJECT_HOOKS="$TEMP_PROJECT/.claude/hooks"
 PROJECT_SKILLS="$TEMP_PROJECT/.claude/skills"
 PROJECT_CONSTANTS="$TEMP_PROJECT/.claude/constants"
-mkdir -p "$PROJECT_CMDS" "$PROJECT_HOOKS" "$PROJECT_SKILLS/create-command" "$PROJECT_CONSTANTS"
+mkdir -p "$PROJECT_CMDS" "$PROJECT_HOOKS" "$PROJECT_SKILLS/create-command" "$PROJECT_SKILLS/refresh-slash-names" "$PROJECT_CONSTANTS"
 # Repo-managed commands — must be removed
 printf '#!/usr/bin/env bash\n' > "$PROJECT_CMDS/ping.sh"
 printf 'ping\n'               > "$PROJECT_CMDS/ping.md"
@@ -100,6 +130,11 @@ check "exits 0 for project uninstall" 0 bash "$CMD" "$TEMP_PROJECT"
     printf '  PASS  create-command skill removed from project\n'; (( pass++ )) || true
 } || {
     printf '  FAIL  create-command skill still present in project\n'; (( fail++ )) || true
+}
+[[ ! -d "$PROJECT_SKILLS/refresh-slash-names" ]] && {
+    printf '  PASS  refresh-slash-names skill removed from project\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  refresh-slash-names skill still present in project\n'; (( fail++ )) || true
 }
 [[ ! -f "$PROJECT_CONSTANTS/builtin-commands.txt" ]] && {
     printf '  PASS  builtin-commands.txt removed from project\n'; (( pass++ )) || true
@@ -166,6 +201,11 @@ check "exits 0 for global uninstall from /tmp" 0 env HOME="$TEMP_HOME" bash "$CM
 } || {
     printf '  FAIL  create-command skill still present\n'; (( fail++ )) || true
 }
+[[ ! -d "$TEMP_HOME/.claude/skills/refresh-slash-names" ]] && {
+    printf '  PASS  refresh-slash-names skill removed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  refresh-slash-names skill still present\n'; (( fail++ )) || true
+}
 SETTINGS_CONTENT=$(cat "$TEMP_HOME/.claude/settings.json" 2>/dev/null || true)
 if ! printf '%s' "$SETTINGS_CONTENT" | grep -q 'UserPromptSubmit'; then
     printf '  PASS  dispatch hook entry removed from settings.json\n'; (( pass++ )) || true
@@ -192,6 +232,60 @@ if ! printf '%s' "$SETTINGS2_CONTENT" | grep -q 'UserPromptSubmit'; then
 else
     printf '  FAIL  hook entry not removed when stored as $HOME literal\n'; (( fail++ )) || true
 fi
+
+# Corrupt/unparseable settings.json — should be left untouched (NO_CHANGE), not overwritten
+printf '\nCorrupt settings.json:\n'
+TEMP_HOME3=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$EMPTY_PROJECT" "$TEMP_HOME" "$TEMP_HOME2" "$TEMP_HOME3"' EXIT
+mkdir -p "$TEMP_HOME3/.claude/hooks"
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME3/.claude/hooks/dispatch-commands.sh"
+printf '{not valid json' > "$TEMP_HOME3/.claude/settings.json"
+
+check "exits 0 even when settings.json is corrupt" 0 env HOME="$TEMP_HOME3" bash "$CMD"
+
+CORRUPT_AFTER=$(cat "$TEMP_HOME3/.claude/settings.json" 2>/dev/null || true)
+if [[ "$CORRUPT_AFTER" == "{not valid json" ]]; then
+    printf '  PASS  corrupt settings.json left untouched (NO_CHANGE)\n'; (( pass++ )) || true
+else
+    printf '  FAIL  corrupt settings.json was modified: %s\n' "$CORRUPT_AFTER"; (( fail++ )) || true
+fi
+[[ ! -f "$TEMP_HOME3/.claude/hooks/dispatch-commands.sh" ]] && {
+    printf '  PASS  hook script still removed despite corrupt settings.json\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  hook script not removed\n'; (( fail++ )) || true
+}
+
+# Valid settings.json with no matching hook entry — NOT_FOUND branch, file left untouched
+printf '\nValid settings.json without matching hook entry:\n'
+TEMP_HOME4=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$EMPTY_PROJECT" "$TEMP_HOME" "$TEMP_HOME2" "$TEMP_HOME3" "$TEMP_HOME4"' EXIT
+mkdir -p "$TEMP_HOME4/.claude"
+printf '{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"/some/other/hook.sh"}]}]}}' \
+    > "$TEMP_HOME4/.claude/settings.json"
+
+check "exits 0 when settings.json has no matching hook entry" 0 env HOME="$TEMP_HOME4" bash "$CMD"
+
+NOTFOUND_AFTER=$(cat "$TEMP_HOME4/.claude/settings.json" 2>/dev/null || true)
+if printf '%s' "$NOTFOUND_AFTER" | grep -q '/some/other/hook.sh'; then
+    printf '  PASS  unrelated hook entry preserved (NOT_FOUND branch left file untouched)\n'; (( pass++ )) || true
+else
+    printf '  FAIL  unrelated hook entry was lost: %s\n' "$NOTFOUND_AFTER"; (( fail++ )) || true
+fi
+
+# --- Root wrapper (uninstall.sh) delegates to uninstall-custom-commands.sh ---
+printf '\nRoot wrapper (uninstall.sh):\n'
+TEMP_PROJECT_WRAPPER=$(mktemp -d)
+trap 'cd "$ORIG_DIR"; rm -rf "$TEMP_PROJECT" "$EMPTY_PROJECT" "$TEMP_HOME" "$TEMP_HOME2" "$TEMP_HOME3" "$TEMP_HOME4" "$TEMP_PROJECT_WRAPPER"' EXIT
+mkdir -p "$TEMP_PROJECT_WRAPPER/.claude/commands"
+printf '#!/usr/bin/env bash\n' > "$TEMP_PROJECT_WRAPPER/.claude/commands/ping.sh"
+check "uninstall.sh exits 0 for project uninstall (args pass through)" 0 \
+    bash "$WRAPPER" "$TEMP_PROJECT_WRAPPER"
+[[ ! -f "$TEMP_PROJECT_WRAPPER/.claude/commands/ping.sh" ]] && {
+    printf '  PASS  uninstall.sh delegates and removes from project dir\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  uninstall.sh did not remove from project dir\n'; (( fail++ )) || true
+}
+rm -rf "$TEMP_PROJECT_WRAPPER"
 
 cd "$ORIG_DIR"
 

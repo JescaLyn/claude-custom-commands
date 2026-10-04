@@ -118,6 +118,18 @@ has_line "desc with --force"          "desc: smoke test command" env HOME="$TEMP
 has_line "name with --global"         "name: ping"         env HOME="$TEMP/home" bash "$CMD" "--global ping smoke test command"
 has_line "desc with --global"         "desc: smoke test command" env HOME="$TEMP/home" bash "$CMD" "--global ping smoke test command"
 
+# First token starting with a digit is not a valid name token — whole string stays the description
+has_line "leading-digit token treated as description, not name" "name: infer" \
+    env HOME="$TEMP/home" bash "$CMD" "1abc show date"
+has_line "leading-digit token: full string in desc"             "desc: 1abc show date" \
+    env HOME="$TEMP/home" bash "$CMD" "1abc show date"
+
+# Unrecognized flag-like token (not --force/--global) is not stripped — it stays part of the description
+has_line "unrecognized flag stays in description" "desc: --verbose show date" \
+    env HOME="$TEMP/home" bash "$CMD" "--verbose show date"
+has_line "unrecognized flag: name still inferred" "name: infer" \
+    env HOME="$TEMP/home" bash "$CMD" "--verbose show date"
+
 # -----------------------------------------------------------------------
 printf '\nScope detection:\n'
 # -----------------------------------------------------------------------

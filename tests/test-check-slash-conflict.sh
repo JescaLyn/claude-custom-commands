@@ -59,6 +59,20 @@ check_output() {
     fi
 }
 
+# Builds a PATH with every directory that contains a python3 executable stripped out,
+# to simulate "python3 not installed" without touching the real PATH. Resolve bash's own
+# absolute path first so the stripped PATH can never accidentally break bash's own lookup.
+BASH_BIN=$(command -v bash)
+strip_python3_from_path() {
+    local dir result=""
+    IFS=':' read -ra dirs <<< "$PATH"
+    for dir in "${dirs[@]}"; do
+        [[ -x "$dir/python3" ]] && continue
+        result="${result:+$result:}$dir"
+    done
+    printf '%s' "$result"
+}
+
 printf 'Running check-slash-conflict.sh tests...\n\n'
 
 # Clean name — no conflicts
@@ -114,6 +128,12 @@ check "exits 1 for name matching existing custom command" 1 \
 
 check_output "warns about existing command" "WARNING" \
     bash -c "bash '$CHECK' existing-cmd || true"
+
+# Missing (not just empty) constants files — grep/[[ -f ]] guards should no-op, not error
+TEMP_NO_CONSTANTS=$(mktemp -d)
+rm -rf "$TEMP_NO_CONSTANTS"
+check "exits 0 for clean name when constants dir doesn't exist" 0 \
+    bash -c "CLAUDE_CONSTANTS_DIR='$TEMP_NO_CONSTANTS' bash '$CHECK' some-clean-name"
 
 # --- Direct mode: scope args ---
 printf '\nDirect mode scope args:\n'
@@ -174,6 +194,33 @@ check_output "won't-take-effect skill warning in direct mode" "won.t take effect
 
 rm -rf "$TEMP_SCOPE_HOME" "$TEMP_SCOPE_PROJ"
 
+# --- Direct mode: CLAUDE_COMMANDS_DIR scope inference ---
+printf '\nDirect mode: CLAUDE_COMMANDS_DIR scope inference:\n'
+
+# When CLAUDE_COMMANDS_DIR is set and falls under $HOME/.claude/, direct mode infers IS_GLOBAL=true
+# and applies the cross-scope "won't take effect in project" check accordingly.
+TEMP_INFER_HOME=$(mktemp -d)
+TEMP_INFER_PROJ=$(mktemp -d)
+mkdir -p "$TEMP_INFER_HOME/.claude/commands" "$TEMP_INFER_PROJ/.claude/commands"
+touch "$TEMP_INFER_PROJ/.claude/commands/infer-global.sh"
+check "exits 1 when CLAUDE_COMMANDS_DIR under \$HOME/.claude infers global scope" 1 \
+    bash -c "HOME='$TEMP_INFER_HOME' CLAUDE_PROJECT_DIR='$TEMP_INFER_PROJ' CLAUDE_COMMANDS_DIR='$TEMP_INFER_HOME/.claude/commands' CLAUDE_SKILLS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' infer-global"
+check_output "infers global scope shows won't-take-effect warning" "won.t take effect" \
+    bash -c "HOME='$TEMP_INFER_HOME' CLAUDE_PROJECT_DIR='$TEMP_INFER_PROJ' CLAUDE_COMMANDS_DIR='$TEMP_INFER_HOME/.claude/commands' CLAUDE_SKILLS_DIR='' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' infer-global || true"
+rm -rf "$TEMP_INFER_HOME" "$TEMP_INFER_PROJ"
+
+# --- CONSTANTS_DIR fallback chain ---
+printf '\nCONSTANTS_DIR fallback chain:\n'
+
+# With no CLAUDE_CONSTANTS_DIR override, the checker falls back to $HOME/.claude/constants.
+TEMP_FALLBACK_HOME=$(mktemp -d)
+mkdir -p "$TEMP_FALLBACK_HOME/.claude/constants"
+printf 'fallback-builtin\n' > "$TEMP_FALLBACK_HOME/.claude/constants/builtin-commands.txt"
+printf '' > "$TEMP_FALLBACK_HOME/.claude/constants/bundled-skills.txt"
+check "falls back to \$HOME/.claude/constants when CLAUDE_CONSTANTS_DIR unset" 1 \
+    bash -c "HOME='$TEMP_FALLBACK_HOME' CLAUDE_COMMANDS_DIR='' CLAUDE_SKILLS_DIR='' CLAUDE_CONSTANTS_DIR= bash '$CHECK' fallback-builtin"
+rm -rf "$TEMP_FALLBACK_HOME"
+
 # --- Hook mode ---
 printf '\nHook mode:\n'
 
@@ -195,6 +242,27 @@ check "non-Write tool exits 0" 0 \
 # Write to unrelated path — silent pass
 check "Write to unrelated path exits 0" 0 \
     bash -c "printf '%s' '$(write_json Write /tmp/foo.sh)' | HOME='$TEMP_HOME' bash '$CHECK'"
+
+# Write to a .sh path under commands/ (not .md) — regex requires .md, so this is an unrelated path
+check "Write to .sh command path (not .md) exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/deploy.sh")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+# Malformed JSON on stdin in hook mode — fails open (exit 0) with a diagnostic, not silently
+check "malformed JSON in hook mode exits 0" 0 \
+    bash -c "printf 'not json' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+check_output "malformed JSON diagnostic goes to stderr" "failed to parse hook input JSON" \
+    bash -c "printf 'not json' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+# python3 missing in hook mode — fails open (exit 0) with a diagnostic, not silently
+NO_PYTHON3_PATH=$(strip_python3_from_path)
+check "python3 missing in hook mode exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/deploy.md")' | HOME='$TEMP_HOME' PATH='$NO_PYTHON3_PATH' '$BASH_BIN' '$CHECK'"
+check_output "python3-missing hook diagnostic goes to stderr" "python3 not found" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/commands/deploy.md")' | HOME='$TEMP_HOME' PATH='$NO_PYTHON3_PATH' '$BASH_BIN' '$CHECK'"
+
+# session_id defaults to 'shared' when absent from hook input JSON
+check_output "missing session_id defaults to 'shared' in approval file path" "sessions/shared/" \
+    bash -c "printf '%s' '{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$TEMP_HOME/.claude/commands/clear.md\",\"content\":\"\"}}' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
 
 # Write new command, clean name — pass
 check "Write new command, clean name exits 0" 0 \
@@ -226,6 +294,24 @@ check "Write new skill, bundled skill conflict exits 0" 0 \
 
 check_output "skill bundled conflict shows note not conflict header" "note" \
     bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/review/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Write new skill, built-in command name conflict — informational note only (same as bundled-skill note)
+check "Write new skill, built-in command conflict exits 0" 0 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/clear/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+
+check_output "skill built-in conflict shows note not conflict header" "note" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/clear/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+
+# Write new skill named after a bundled skill (informational note) that ALSO has an existing
+# custom command of the same name (blocking) — the blocked message should include both, via
+# an "Also note:" section, not just the blocking reasons.
+mkdir -p "$TEMP_HOME/.claude/commands"
+printf '#!/usr/bin/env bash\n' > "$TEMP_HOME/.claude/commands/review.sh"
+check "Write new skill named 'review' with existing command exits 2" 2 \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/review/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK'"
+check_output "combined block + note shows 'Also note:'" "Also note:" \
+    bash -c "printf '%s' '$(write_json Write "$TEMP_HOME/.claude/skills/review/SKILL.md")' | HOME='$TEMP_HOME' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CHECK' 2>&1 || true"
+rm -f "$TEMP_HOME/.claude/commands/review.sh"
 
 # Write new skill, existing custom command conflict — blocked with user confirmation required
 mkdir -p "$TEMP_HOME/.claude/commands"

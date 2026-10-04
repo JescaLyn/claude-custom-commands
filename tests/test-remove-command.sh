@@ -193,6 +193,28 @@ check "tilde-prefixed project path removes correctly" 0 \
 
 rm -rf "$TEMP_TILDE_HOME"
 
+# CLAUDE_COMMANDS_DIR test override takes precedence over a project-path positional argument
+printf '\nCLAUDE_COMMANDS_DIR overrides project-path argument:\n'
+TEMP_OVERRIDE_CMDS=$(mktemp -d)
+TEMP_OVERRIDE_PROJ=$(mktemp -d)
+mkdir -p "$TEMP_OVERRIDE_PROJ/.claude/commands"
+printf '#!/usr/bin/env bash\necho override\n' > "$TEMP_OVERRIDE_CMDS/override-test.sh"
+printf '#!/usr/bin/env bash\necho project\n' > "$TEMP_OVERRIDE_PROJ/.claude/commands/override-test.sh"
+
+check "CLAUDE_COMMANDS_DIR wins when both override and project-path are given" 0 \
+    bash -c "CLAUDE_COMMANDS_DIR='$TEMP_OVERRIDE_CMDS' CLAUDE_CONSTANTS_DIR='$TEMP_CONSTANTS' bash '$CMD' override-test '$TEMP_OVERRIDE_PROJ'"
+[[ ! -f "$TEMP_OVERRIDE_CMDS/override-test.sh" ]] && {
+    printf '  PASS  override-scope copy removed\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  override-scope copy still exists\n'; (( fail++ )) || true
+}
+[[ -f "$TEMP_OVERRIDE_PROJ/.claude/commands/override-test.sh" ]] && {
+    printf '  PASS  project-path copy untouched (override took precedence)\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  project-path copy was incorrectly removed\n'; (( fail++ )) || true
+}
+rm -rf "$TEMP_OVERRIDE_CMDS" "$TEMP_OVERRIDE_PROJ"
+
 # Cleanup
 rm -rf "$TEMP_COMMANDS" "$TEMP_CONSTANTS"
 

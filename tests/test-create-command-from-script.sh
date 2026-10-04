@@ -210,6 +210,13 @@ check "--name and --script flags work together" 0 \
 check "unknown flag exits 1" 1 \
     bash "$CMD" "--unknown-flag" "foo" "$REAL_SCRIPT"
 
+# Too many positional arguments — 4th positional after name/script/project-path is an error
+check "too many positional arguments exits 1" 1 \
+    bash "$CMD" "name-arg" "$REAL_SCRIPT" "/some/project" "extra-arg"
+
+check_output "too many positional arguments explains the error" "Unexpected argument" \
+    bash -c "bash '$CMD' 'name-arg' '$REAL_SCRIPT' '/some/project' 'extra-arg' || true"
+
 # Tilde expansion in project path
 printf '\nTilde expansion:\n'
 TEMP_TILDE_HOME=$(mktemp -d)
@@ -223,7 +230,50 @@ check "tilde-prefixed project path installs correctly" 0 \
     printf '  FAIL  tilde path did not resolve correctly\n'; (( fail++ )) || true
 }
 
+# Tilde expansion also applies to the --project flag form, not just the positional form
+check "tilde-prefixed --project flag installs correctly" 0 \
+    bash -c "HOME='$TEMP_TILDE_HOME' CLAUDE_COMMANDS_DIR='' bash '$CMD' 'tilde-flag-install' '$REAL_SCRIPT' --project '~/myproject'"
+[[ -f "$TEMP_TILDE_HOME/myproject/.claude/commands/tilde-flag-install.sh" ]] && {
+    printf '  PASS  tilde path resolved via --project flag\n'; (( pass++ )) || true
+} || {
+    printf '  FAIL  tilde path via --project flag did not resolve correctly\n'; (( fail++ )) || true
+}
+
 rm -rf "$TEMP_TILDE_HOME"
+
+# --- MD_DEST stub: skip-if-present and content ---
+printf '\nAutocomplete stub content:\n'
+
+DESC_SCRIPT=$(mktemp "$TEMP_DIR/desc-XXXX.sh")
+printf '#!/usr/bin/env bash\n# description: A described command\necho hi\n' > "$DESC_SCRIPT"
+chmod +x "$DESC_SCRIPT"
+
+check "registers command with description" 0 \
+    bash "$CMD" "described-cmd" "$DESC_SCRIPT"
+
+STUB_CONTENT=$(cat "$TEMP_COMMANDS/described-cmd.md" 2>/dev/null || true)
+if printf '%s' "$STUB_CONTENT" | grep -q "A described command"; then
+    printf '  PASS  stub content includes script description\n'; (( pass++ )) || true
+else
+    printf '  FAIL  stub content missing description: %s\n' "$STUB_CONTENT"; (( fail++ )) || true
+fi
+
+# Pre-existing .md stub is left untouched (not overwritten) when the command is re-registered.
+# That path isn't directly re-triggerable without deleting the .sh first
+# (create-command-from-script.sh refuses to overwrite an existing .sh), so simulate the
+# skip-if-present branch directly: remove only the .sh, leave a hand-edited .md, then re-run.
+rm -f "$TEMP_COMMANDS/described-cmd.sh"
+printf 'Hand-edited stub — should survive re-registration\n' > "$TEMP_COMMANDS/described-cmd.md"
+
+check "re-registers after .sh removed, .md stub preserved" 0 \
+    bash "$CMD" "described-cmd" "$DESC_SCRIPT"
+
+PRESERVED_CONTENT=$(cat "$TEMP_COMMANDS/described-cmd.md" 2>/dev/null || true)
+if printf '%s' "$PRESERVED_CONTENT" | grep -q "Hand-edited stub"; then
+    printf '  PASS  pre-existing .md stub not overwritten\n'; (( pass++ )) || true
+else
+    printf '  FAIL  pre-existing .md stub was overwritten: %s\n' "$PRESERVED_CONTENT"; (( fail++ )) || true
+fi
 
 # Cleanup
 rm -rf "$TEMP_DIR" "$TEMP_COMMANDS"

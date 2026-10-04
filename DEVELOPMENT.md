@@ -13,8 +13,12 @@ bash tests/test-dispatch.sh
 bash tests/test-check-slash-conflict.sh
 bash tests/test-create-command-from-script.sh
 bash tests/test-remove-command.sh
+bash tests/test-commands-help.sh
 bash tests/test-install-custom-commands.sh
+bash tests/test-install-custom-commands-minimal.sh
 bash tests/test-uninstall-custom-commands.sh
+bash tests/test-write-slash-names.sh
+bash tests/test-create-command-preflight.sh
 bash tests/test-integration.sh
 ```
 
