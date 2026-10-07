@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Syncs the global install after git merge or git pull, including fast-forwards (which create no
+# commit, so post-commit never fires). ORIG_HEAD is the branch tip before the merge.
+set -euo pipefail
+# $1 is 1 for --squash: HEAD didn't move and the changes are uncommitted; the later commit syncs.
+# git also sets ORIG_HEAD to HEAD here (so the diff would be empty anyway); exiting early makes the
+# intent explicit rather than relying on that.
+if [[ "${1:-0}" == 1 ]]; then exit 0; fi
+exec bash "$(dirname "$0")/sync-global-install.sh" ORIG_HEAD

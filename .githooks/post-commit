@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Syncs the global install after a commit (including a merge commit finished by hand after
+# conflicts, and --amend). Compares against the first parent, or the empty tree for a root commit.
+set -euo pipefail
+BASE=$(git rev-parse --quiet --verify 'HEAD^1') || BASE=$(git hash-object -t tree /dev/null)
+exec bash "$(dirname "$0")/sync-global-install.sh" "$BASE"

@@ -17,12 +17,12 @@ fi
 
 cd "$REPO"
 set +e
-OUTPUT=$(find . -name '*.sh' -not -path './.git/*' -print0 | xargs -0 shellcheck 2>&1)
+OUTPUT=$(find . \( -name '*.sh' -o -path './.githooks/*' \) -type f -not -path './.git/*' -print0 | xargs -0 shellcheck 2>&1)
 EC=$?
 set -e
 
 if [[ $EC -eq 0 ]]; then
-    printf '  PASS  shellcheck clean across all .sh files\n'; (( pass++ )) || true
+    printf '  PASS  shellcheck clean across all .sh files and .githooks/\n'; (( pass++ )) || true
 else
     printf '  FAIL  shellcheck found issues:\n'
     printf '%s\n' "$OUTPUT" | sed 's/^/    /'

@@ -36,6 +36,12 @@ This is not a plugin — the plugin format requires marketplace infrastructure. 
     refresh-slash-names/SKILL.md     /refresh-slash-names — fetches docs (inference), delegates write to script
     refresh-slash-names/write-slash-names.sh  helper script; writes, normalizes, and confirms constants files
 
+.githooks/                                 opt-in dev hooks (git config core.hooksPath .githooks); re-sync the global install when the default branch changes
+  sync-global-install.sh             shared logic; syncs changes between a base rev and HEAD
+  post-commit                        base = first parent (empty tree for a root commit)
+  post-merge                         base = ORIG_HEAD; covers merge, pull, and fast-forwards; skips --squash
+  post-rewrite                       base = ORIG_HEAD; rebase only (amend is handled by post-commit)
+
 install.sh                                 thin wrapper; delegates to install-custom-commands.sh
 uninstall.sh                                thin wrapper; delegates to uninstall-custom-commands.sh
 VERSION                                     current version string (semver); tag each release as v<VERSION>
@@ -62,6 +68,7 @@ tests/test-install-custom-commands-minimal.sh
 tests/test-uninstall-custom-commands.sh
 tests/test-write-slash-names.sh
 tests/test-create-command-preflight.sh
+tests/test-sync-global-install.sh             clones the repo plus uncommitted changes into a temp dir with a temp HOME; real commits, merges, rebases
 tests/test-integration.sh
 ```
 
@@ -85,9 +92,11 @@ tests/test-integration.sh
 
 **`check-slash-conflict.sh` cross-scope awareness**: The conflict checker validates both same-scope and cross-scope conflicts, for both commands and skills. A project-scope write is blocked if a same-name entry already exists globally (the project entry would shadow it). A global write is blocked if a same-name entry already exists in the currently open project (the global entry would be unreachable there). This prevents silent dispatch mismatches where a command or skill appears to install successfully but is never reachable because another entry intercepts the name first.
 
+**Global-install sync is opt-in, default-branch only, and touches only what changed**: the `.githooks/` hooks only run when `core.hooksPath` points at `.githooks`, so cloning the repo never silently rewrites anyone's `~/.claude/`. Three hooks are needed because no single one sees every way the branch moves: `git merge` (including fast-forwards and `git pull` in either mode) runs post-merge, not post-commit, and rebase runs post-rewrite. Verified against git 2.39: during a rebase, per-pick post-commit runs on a detached HEAD and is skipped, so there are no duplicate syncs; `merge --squash` fires post-merge with `$1 == 1` and ORIG_HEAD set to HEAD (an empty diff); post-merge exits early on it explicitly, and the follow-up commit syncs. Known gap: a `git rebase` that only fast-forwards fires just post-checkout, on a detached HEAD before the branch moves, so it doesn't sync. Catching it would need a reference-transaction hook, which fires on every ref update and would duplicate the other hooks' syncs. Each passes a base rev to `sync-global-install.sh`, which diffs base..HEAD with `-z` (so git's path quoting can't hide unusual file names). It reuses `install.sh` (no duplicated install logic), then force-copies just the command files that were added or changed and removes global copies of command and skill files that were deleted (renames arrive as delete plus add). A full force reinstall would clobber every hand-edited bundled command, not just the ones that changed. It skips changes off the default branch (`origin/HEAD`, falling back to `main`) because `~/.claude/` affects every session. It also skips linked worktrees (`--git-dir` differs from `--git-common-dir`): worktrees share `core.hooksPath` and `--no-verify` doesn't skip post-commit, so a throwaway review worktree would otherwise overwrite `~/.claude/`. `CLAUDE_PROJECT_DIR` is pinned to the repo when calling `install.sh`, because a value inherited from a Claude Code session would otherwise override the installer's source dir. A failed sync logs to stderr but exits 0, because the git operation already succeeded and a failing post-* hook can't undo it.
+
 **Install fails loud on corrupt `settings.json`; uninstall skips quietly**: If `settings.json` exists but isn't valid JSON, `install-custom-commands.sh` / `install-custom-commands-minimal.sh` print an error and exit 1 without touching the file — install has a hook to register and can't safely proceed without a parseable file to merge into. `uninstall-custom-commands.sh` instead prints `NO_CHANGE` and leaves the file alone, because uninstall has nothing it needs to write; there's no reason to fail a removal over a settings file it doesn't need to touch. Neither path silently resets the file to `{}` and overwrites, which would discard unrelated configuration.
 
-**Shellcheck disables specific codes, not a severity threshold**: `.shellcheckrc` has no `severity=` directive — that's a CLI-only flag (`-S`), confirmed by testing against shellcheck 0.11.0. The repo instead disables SC2016 and SC2015 by code: SC2016 fires on every intentionally-unexpanded single-quoted literal like `'${CLAUDE_PROJECT_DIR}/...'`, and SC2015 fires on the `[[ cond ]] && { } || { }` idiom used throughout `tests/` where both branches are plain literal blocks. Both are real patterns in this repo, not mistakes, so they're disabled by code rather than filtered by a severity cutoff that doesn't exist. CI calls plain `shellcheck` with no flags; `.shellcheckrc` auto-discovery applies the same disables there as locally.
+**Shellcheck disables specific codes, not a severity threshold**: `.shellcheckrc` has no `severity=` directive — that's a CLI-only flag (`-S`), confirmed by testing against shellcheck 0.11.0. The repo instead disables SC2016 and SC2015 by code: SC2016 fires on every intentionally-unexpanded single-quoted literal like `'${CLAUDE_PROJECT_DIR}/...'`, and SC2015 fires on the `[[ cond ]] && { } || { }` idiom used throughout `tests/` where both branches are plain literal blocks. Both are real patterns in this repo, not mistakes, so they're disabled by code rather than filtered by a severity cutoff that doesn't exist. CI calls plain `shellcheck` with no flags on every `*.sh` file plus everything in `.githooks/` (git hooks can't have an extension); `.shellcheckrc` auto-discovery applies the same disables there as locally.
 
 **Global-first constants lookup**: `check-slash-conflict.sh` always reads `~/.claude/constants/`, falling back to project-local constants only if the global directory does not exist. Built-in command names and bundled skill names are facts about Claude Code itself — one global update benefits all sessions. Project installs still copy constants locally so the hook works even without a global install.
 
@@ -107,7 +116,7 @@ tests/test-integration.sh
 
 **Suppressing the footer**: `suppressOriginalPrompt: true` inside `hookSpecificOutput` (not top-level — the docs example is misleading) removes the "Original prompt: /foo" footer line.
 
-**The banner is hardcoded**: `UserPromptSubmit operation blocked by hook: [command]: <reason>` cannot be suppressed. There is no documented or undocumented field that removes the header line or the `[command]:` identifier prefix. The minimum visible output is one banner line plus the reason content.
+**The banner is hardcoded**: `UserPromptSubmit operation blocked by hook:` cannot be suppressed. There is no documented or undocumented field that removes it. The minimum visible output is the banner line followed by the reason content.
 
 **The reason is box-framed**: The dispatcher wraps script output in a box whose header reads `╭─ Running command /<name> [args] ───`. Width is `max(header + 3, longest output line + 3, 40)`; the README's `/ping` example reflects the real rendered width, so update it if the formula or header text changes. `test-dispatch.sh` asserts the header text.
 
@@ -116,3 +125,9 @@ tests/test-integration.sh
 ## Releasing
 
 Bump `VERSION`, commit, wait for CI to pass, then `git tag -a v<VERSION> -m v<VERSION> && git push origin v<VERSION>`. `v0.1.0` is the first tag.
+
+## Previous Session Transcripts
+
+- **Native JSONL**: `~/.claude/projects/-Users-jessicaterry-Documents-dev-claude-custom-commands/` — full-fidelity transcripts from sessions opened in this project directory.
+- **PTY-converted JSONL**: `~/claude-sessions/converted/` — reconstructed transcripts from all terminal sessions (search by content to find this project's sessions).
+- Sessions opened from `~/.claude` or other directories may also contain work on this project; check native JSONL under those directories too.

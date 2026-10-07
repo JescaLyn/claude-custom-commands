@@ -20,6 +20,7 @@ bash tests/test-install-custom-commands-minimal.sh
 bash tests/test-uninstall-custom-commands.sh
 bash tests/test-write-slash-names.sh
 bash tests/test-create-command-preflight.sh
+bash tests/test-sync-global-install.sh
 bash tests/test-integration.sh
 ```
 
@@ -28,6 +29,16 @@ To test `/create-command-from-script` end-to-end in Claude Code, open Claude Cod
 ```
 /create-command-from-script hello tests/sample-hello.sh
 ```
+
+## Auto-Syncing Your Global Install
+
+To keep your global install (`~/.claude/`) in sync with the repo, enable the bundled git hooks once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Whenever the default branch changes through a commit, merge, pull, or rebase, and the change touches `.claude/hooks/`, `.claude/commands/`, `.claude/skills/`, or `.claude/constants/`, the hooks run `./install.sh`. They also force-copy any changed command scripts, which `install.sh` alone skips when they already exist, and remove the global copies of commands and skill files that were deleted or renamed. This overwrites hand edits to the bundled commands in `~/.claude/commands/`. Changes on other branches and in linked worktrees are skipped, so work in progress never reaches your global install; run `./install.sh` by hand to try a branch globally. One case isn't caught: a plain `git rebase` that only fast-forwards `main` fires no usable hook, so use `git pull` or `git merge --ff-only` there, or run `./install.sh` afterward. A failed sync is reported but never fails the git operation. Restart Claude Code to pick up hook changes.
 
 ## Checking for Flaky Tests
 

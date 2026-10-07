@@ -60,9 +60,8 @@ $OUTPUT"
 fi
 
 # Exit 0 + JSON blocks inference via decision:block. suppressOriginalPrompt inside
-# hookSpecificOutput removes the "Original prompt:" footer. The one-line banner
-# "UserPromptSubmit operation blocked by hook: [command]: <reason>" is hardcoded
-# and cannot be suppressed.
+# hookSpecificOutput removes the "Original prompt:" footer. The banner line
+# "UserPromptSubmit operation blocked by hook:" is hardcoded and cannot be suppressed.
 python3 -c "
 import json, sys
 label, output = sys.argv[1], sys.argv[2].rstrip('\n')

@@ -33,6 +33,7 @@ run_suite test-install-custom-commands-minimal.sh
 run_suite test-uninstall-custom-commands.sh
 run_suite test-write-slash-names.sh
 run_suite test-create-command-preflight.sh
+run_suite test-sync-global-install.sh
 run_suite test-integration.sh
 
 printf '\n=== tmp leak check ===\n'

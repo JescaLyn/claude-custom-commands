@@ -12,4 +12,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run shellcheck
-        run: find . -name '*.sh' -not -path './.git/*' -print0 | xargs -0 shellcheck
+        run: find . \( -name '*.sh' -o -path './.githooks/*' \) -type f -not -path './.git/*' -print0 | xargs -0 shellcheck
